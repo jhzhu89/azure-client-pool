@@ -38,13 +38,13 @@ export interface DelegatedAuthenticationConfig {
 export interface ClientManagerConfig {
   cacheKeyPrefix: string;
   clientCache: {
-    slidingTtl?: number;
-    maxSize?: number;
+    slidingTtl: number;
+    maxSize: number;
   };
   credentialCache: {
-    slidingTtl?: number;
-    maxSize?: number;
-    absoluteTTL?: number;
+    slidingTtl: number;
+    maxSize: number;
+    absoluteTTL: number;
   };
 }
 

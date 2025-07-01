@@ -8,6 +8,12 @@ import { clientLogger, credentialLogger } from "../utils/logging.js";
 
 const CACHE_KEY_TRUNCATE_LENGTH = 50;
 
+interface Disposable {
+  dispose?: () => void | Promise<void>;
+  [Symbol.asyncDispose]?: () => Promise<void>;
+  [Symbol.dispose]?: () => void;
+}
+
 interface CredentialCacheEntry {
   credential: TokenCredential;
   absoluteExpiresAt: number;
@@ -27,14 +33,16 @@ function createLoggableKey(rawKey: string): string {
     : rawKey;
 }
 
-function hasDispose(
-  obj: unknown,
-): obj is { dispose?: () => void | Promise<void> } {
+function hasDispose(obj: unknown): obj is Disposable {
   return (
     obj != null &&
     typeof obj === "object" &&
-    "dispose" in obj &&
-    typeof (obj as { dispose: unknown }).dispose === "function"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (typeof (obj as any).dispose === "function" ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      typeof (obj as any)[Symbol.asyncDispose] === "function" ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      typeof (obj as any)[Symbol.dispose] === "function")
   );
 }
 
@@ -53,15 +61,15 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
     this.pendingCredentials = new Map();
 
     this.credentialCache = new TTLCache<string, CredentialCacheEntry>({
-      max: this.config.credentialCache.maxSize!,
-      ttl: this.config.credentialCache.slidingTtl!,
+      max: this.config.credentialCache.maxSize,
+      ttl: this.config.credentialCache.slidingTtl,
       updateAgeOnGet: true,
       checkAgeOnGet: true,
     });
 
     this.clientCache = new TTLCache<string, ClientCacheEntry<TClient>>({
-      max: this.config.clientCache.maxSize!,
-      ttl: this.config.clientCache.slidingTtl!,
+      max: this.config.clientCache.maxSize,
+      ttl: this.config.clientCache.slidingTtl,
       updateAgeOnGet: true,
       checkAgeOnGet: true,
       dispose: (
@@ -122,8 +130,14 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
         "Disposing client",
       );
 
-      const client = entry.client as { dispose?: () => void | Promise<void> };
-      if (client.dispose) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = entry.client as any;
+
+      if (client[Symbol.asyncDispose]) {
+        await client[Symbol.asyncDispose]();
+      } else if (client[Symbol.dispose]) {
+        client[Symbol.dispose]();
+      } else if (client.dispose) {
         await client.dispose();
       }
 
@@ -222,7 +236,7 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
 
     const entry: CredentialCacheEntry = {
       credential,
-      absoluteExpiresAt: Date.now() + this.config.credentialCache.absoluteTTL!,
+      absoluteExpiresAt: Date.now() + this.config.credentialCache.absoluteTTL,
     };
 
     this.credentialCache.set(credKey, entry);

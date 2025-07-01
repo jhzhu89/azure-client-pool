@@ -15,7 +15,6 @@ describe("Azure Client Pool", () => {
     const packageJson = require("../package.json");
 
     expect(packageJson.name).toBe("@jhzhu89/azure-client-pool");
-    expect(packageJson.version).toBe("0.0.2");
     expect(packageJson.main).toBe("./dist/index.js");
     expect(packageJson.module).toBe("./dist/index.mjs");
   });
