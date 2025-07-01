@@ -1,0 +1,51 @@
+name: Publish Package with Bun
+
+on:
+  release:
+    types: [published]  # Trigger only when a GitHub Release is officially published
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install Bun runtime
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Install dependencies
+      - run: bun install
+
+      # Build the project (ensure you have a build script in your package.json)
+      - run: bun run build
+
+      # Run tests
+      - run: bun test
+
+  publish-npm:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install Bun runtime
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Install dependencies
+      - run: bun install
+
+      # Set up .npmrc for authentication
+      - name: Set up npm auth
+        run: |
+          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
+
+      # Publish the package to npm
+      - name: Publish to npm
+        run: bun publish --access public
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}

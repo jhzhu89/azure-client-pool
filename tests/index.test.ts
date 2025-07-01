@@ -1,0 +1,32 @@
+import { describe, test, expect } from "bun:test";
+
+describe("Azure Client Pool", () => {
+  test("should export main modules", async () => {
+    const module = await import("../src/index.js");
+
+    expect(typeof module.getAzureAuthConfig).toBe("function");
+    expect(typeof module.createClientProvider).toBe("function");
+    expect(typeof module.createClientProviderWithMapper).toBe("function");
+    expect(typeof module.McpRequestMapper).toBe("function");
+    expect(typeof module.logger).toBe("object");
+  });
+
+  test("should have correct package structure", () => {
+    const packageJson = require("../package.json");
+
+    expect(packageJson.name).toBe("@jhzhu89/azure-client-pool");
+    expect(packageJson.version).toBe("0.0.1");
+    expect(packageJson.main).toBe("./dist/index.js");
+    expect(packageJson.module).toBe("./dist/index.mjs");
+  });
+});
+
+describe("Performance", () => {
+  test("module import should be fast", async () => {
+    const start = performance.now();
+    await import("../src/index.js");
+    const end = performance.now();
+
+    expect(end - start).toBeLessThan(100);
+  });
+});

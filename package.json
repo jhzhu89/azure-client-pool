@@ -1,0 +1,84 @@
+{
+  "name": "@jhzhu89/azure-client-pool",
+  "version": "0.0.1",
+  "description": "Azure client lifecycle management with intelligent caching and authentication",
+  "keywords": [
+    "azure",
+    "authentication",
+    "client-management",
+    "typescript",
+    "oauth",
+    "jwt",
+    "cache",
+    "production"
+  ],
+  "author": "jhzhu89",
+  "license": "MIT",
+  "homepage": "https://github.com/jhzhu89/azure-client-pool",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jhzhu89/azure-client-pool.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jhzhu89/azure-client-pool/issues"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "build": "bun run build:clean && bun run build:bundle && bun run build:types",
+    "build:bundle": "bun build src/index.ts --outdir dist --target node --format esm --outfile index.mjs && bun build src/index.ts --outdir dist --target node --format cjs --outfile index.js",
+    "build:types": "bun x tsc --emitDeclarationOnly --outDir dist",
+    "build:clean": "rm -rf dist",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "test:watch": "bun test --watch",
+    "lint": "bun x eslint src --ext .ts",
+    "lint:fix": "bun x eslint src --ext .ts --fix",
+    "docs": "bun x typedoc",
+    "docs:serve": "bun x typedoc --serve",
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "bun x tsc --noEmit",
+    "prepublishOnly": "bun run lint && bun run typecheck && bun run test && bun run build",
+    "install:bun": "bun install",
+    "install:fallback": "npm install"
+  },
+  "peerDependencies": {
+    "@azure/identity": "^4.10.0"
+  },
+  "dependencies": {
+    "@isaacs/ttlcache": "^1.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.2.0",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.0.8",
+    "@types/bun": "latest",
+    "@typescript-eslint/eslint-plugin": "^8.35.1",
+    "@typescript-eslint/parser": "^8.35.1",
+    "eslint": "^9.30.0",
+    "typedoc": "^0.28.7",
+    "typescript": "^5.8.3"
+  }
+}
