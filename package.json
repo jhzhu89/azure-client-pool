@@ -1,6 +1,6 @@
 {
   "name": "@jhzhu89/azure-client-pool",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Azure client lifecycle management with intelligent caching and authentication",
   "keywords": [
     "azure",
@@ -27,9 +27,9 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     }
   },
   "files": [
@@ -42,9 +42,10 @@
     "bun": ">=1.0.0"
   },
   "scripts": {
-    "build": "bun run build:clean && bun run build:bundle && bun run build:types",
-    "build:bundle": "bun build src/index.ts --outdir dist --target node --format esm --outfile index.mjs && bun build src/index.ts --outdir dist --target node --format cjs --outfile index.js",
-    "build:types": "bun x tsc --emitDeclarationOnly --outDir dist",
+    "build": "bun run build:clean && bun run build:js && bun run build:types",
+    "build:js": "tsup",
+    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:watch": "tsup --watch",
     "build:clean": "rm -rf dist",
     "dev": "bun --watch src/index.ts",
     "test": "bun test",
@@ -72,12 +73,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
+    "@types/bun": "latest",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.8",
-    "@types/bun": "latest",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",
     "eslint": "^9.30.0",
+    "tsup": "^8.5.0",
     "typedoc": "^0.28.7",
     "typescript": "^5.8.3"
   }
