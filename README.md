@@ -47,7 +47,7 @@ Each configuration gets its own cache entry, preventing conflicts while maximizi
 ### Application Authentication (Development)
 
 ```typescript
-import { createClientProvider, type ClientFactory, type ApplicationAuthRequest } from '@jhzhu89/azure-client-pool';
+import { createClientProvider, type ApplicationAuthRequest, type ClientFactory } from '@jhzhu89/azure-client-pool';
 
 // Define your client factory
 const clientFactory: ClientFactory<YourClient, YourOptions> = {
@@ -115,9 +115,8 @@ const client = await provider.getAuthenticatedClient({
 
 ### Application Mode
 ```bash
+# `application` is the default auth mode
 export AZURE_AUTH_MODE=application
-export AZURE_CLIENT_ID=your-client-id  
-export AZURE_TENANT_ID=your-tenant-id
 ```
 
 ### Delegated Mode
