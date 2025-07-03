@@ -4,7 +4,9 @@ import { type TokenCredential } from "@azure/identity";
 import { type ClientFactory } from "../types/client-types.js";
 import { type ClientManagerConfig } from "../config/configuration.js";
 import { type CredentialProvider } from "../providers/credential-types.js";
-import { clientLogger, credentialLogger } from "../utils/logging.js";
+import { getLogger } from "../utils/logging.js";
+
+const logger = getLogger("client-manager");
 
 const CACHE_KEY_TRUNCATE_LENGTH = 50;
 
@@ -78,33 +80,27 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
         reason: string,
       ) => {
         this.disposeClientEntry(value, key, reason).catch((error: unknown) => {
-          clientLogger.error(
-            {
-              authMode: this.getAuthMode(),
-              cacheKey:
-                key.length > CACHE_KEY_TRUNCATE_LENGTH
-                  ? key.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
-                  : key,
-              error: error instanceof Error ? error.message : String(error),
-              reason,
-            },
-            "Error disposing client",
-          );
+          logger.error(`Error disposing client`, {
+            authMode: this.getAuthMode(),
+            cacheKey:
+              key.length > CACHE_KEY_TRUNCATE_LENGTH
+                ? key.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
+                : key,
+            error: error instanceof Error ? error.message : String(error),
+            reason,
+          });
         });
       },
     });
 
-    clientLogger.debug(
-      {
-        clientCacheMaxSize: this.config.clientCache.maxSize,
-        clientCacheTTL: this.config.clientCache.slidingTtl,
-        credentialCacheMaxSize: this.config.credentialCache.maxSize,
-        credentialCacheTTL: this.config.credentialCache.slidingTtl,
-        credentialAbsoluteTTL: this.config.credentialCache.absoluteTTL,
-        authMode: this.getAuthMode(),
-      },
-      `${this.getAuthMode()} client manager initialized`,
-    );
+    logger.debug(`${this.getAuthMode()} client manager initialized`, {
+      clientCacheMaxSize: this.config.clientCache.maxSize,
+      clientCacheTTL: this.config.clientCache.slidingTtl,
+      credentialCacheMaxSize: this.config.credentialCache.maxSize,
+      credentialCacheTTL: this.config.credentialCache.slidingTtl,
+      credentialAbsoluteTTL: this.config.credentialCache.absoluteTTL,
+      authMode: this.getAuthMode(),
+    });
   }
 
   private async disposeClientEntry(
@@ -117,18 +113,15 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
     }
 
     try {
-      clientLogger.debug(
-        {
-          authMode: this.getAuthMode(),
-          cacheKey:
-            cacheKey.length > CACHE_KEY_TRUNCATE_LENGTH
-              ? cacheKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
-              : cacheKey,
-          reason,
-          clientType: entry.client?.constructor?.name || "Unknown",
-        },
-        "Disposing client",
-      );
+      logger.debug("Disposing client", {
+        authMode: this.getAuthMode(),
+        cacheKey:
+          cacheKey.length > CACHE_KEY_TRUNCATE_LENGTH
+            ? cacheKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
+            : cacheKey,
+        reason,
+        clientType: entry.client?.constructor?.name || "Unknown",
+      });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = entry.client as any;
@@ -141,30 +134,24 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
         await client.dispose();
       }
 
-      clientLogger.debug(
-        {
-          authMode: this.getAuthMode(),
-          cacheKey:
-            cacheKey.length > CACHE_KEY_TRUNCATE_LENGTH
-              ? cacheKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
-              : cacheKey,
-          reason,
-        },
-        "Client disposed successfully",
-      );
+      logger.debug("Client disposed successfully", {
+        authMode: this.getAuthMode(),
+        cacheKey:
+          cacheKey.length > CACHE_KEY_TRUNCATE_LENGTH
+            ? cacheKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
+            : cacheKey,
+        reason,
+      });
     } catch (error) {
-      clientLogger.warn(
-        {
-          authMode: this.getAuthMode(),
-          cacheKey:
-            cacheKey.length > CACHE_KEY_TRUNCATE_LENGTH
-              ? cacheKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
-              : cacheKey,
-          error: error instanceof Error ? error.message : String(error),
-          reason,
-        },
-        "Client dispose failed, continuing cleanup",
-      );
+      logger.warn("Client dispose failed, continuing cleanup", {
+        authMode: this.getAuthMode(),
+        cacheKey:
+          cacheKey.length > CACHE_KEY_TRUNCATE_LENGTH
+            ? cacheKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
+            : cacheKey,
+        error: error instanceof Error ? error.message : String(error),
+        reason,
+      });
     }
   }
 
@@ -184,39 +171,30 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
 
     const cached = this.credentialCache.get(credKey);
     if (cached && cached.absoluteExpiresAt > Date.now()) {
-      credentialLogger.debug(
-        {
-          authMode: this.getAuthMode(),
-          ...this.getLoggingContext(context),
-          cacheKey:
-            credKey.length > CACHE_KEY_TRUNCATE_LENGTH
-              ? credKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
-              : credKey,
-        },
-        "Credential cache hit",
-      );
+      logger.debug("Credential cache hit", {
+        authMode: this.getAuthMode(),
+        ...this.getLoggingContext(context),
+        cacheKey:
+          credKey.length > CACHE_KEY_TRUNCATE_LENGTH
+            ? credKey.substring(0, CACHE_KEY_TRUNCATE_LENGTH) + "..."
+            : credKey,
+      });
       return cached.credential;
     }
 
     const existingPromise = this.pendingCredentials.get(credKey);
     if (existingPromise) {
-      credentialLogger.debug(
-        {
-          authMode: this.getAuthMode(),
-          ...this.getLoggingContext(context),
-        },
-        "Found pending credential request",
-      );
+      logger.debug("Found pending credential request", {
+        authMode: this.getAuthMode(),
+        ...this.getLoggingContext(context),
+      });
       return existingPromise;
     }
 
-    credentialLogger.debug(
-      {
-        authMode: this.getAuthMode(),
-        ...this.getLoggingContext(context),
-      },
-      "Credential cache miss, creating new credential",
-    );
+    logger.debug("Credential cache miss, creating new credential", {
+      authMode: this.getAuthMode(),
+      ...this.getLoggingContext(context),
+    });
 
     const promise = this.createCredentialInternal(context, credKey);
     this.pendingCredentials.set(credKey, promise);
@@ -241,16 +219,13 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
 
     this.credentialCache.set(credKey, entry);
 
-    credentialLogger.debug(
-      {
-        authMode: this.getAuthMode(),
-        ...this.getLoggingContext(context),
-        slidingTTL: this.config.credentialCache.slidingTtl,
-        expiresAt: new Date(entry.absoluteExpiresAt).toISOString(),
-        credentialCacheSize: this.credentialCache.size,
-      },
-      "Credential created and cached",
-    );
+    logger.debug("Credential created and cached", {
+      authMode: this.getAuthMode(),
+      ...this.getLoggingContext(context),
+      slidingTTL: this.config.credentialCache.slidingTtl,
+      expiresAt: new Date(entry.absoluteExpiresAt).toISOString(),
+      credentialCacheSize: this.credentialCache.size,
+    });
 
     return credential;
   }
@@ -259,47 +234,35 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
     const rawKey = this.createClientCacheKey(context, options);
     const stableKey = createStableCacheKey(rawKey);
 
-    clientLogger.debug(
-      {
-        authMode: this.getAuthMode(),
-        ...this.getLoggingContext(context),
-        cacheKey: createLoggableKey(rawKey),
-      },
-      "Cache lookup",
-    );
+    logger.debug("Cache lookup", {
+      authMode: this.getAuthMode(),
+      ...this.getLoggingContext(context),
+      cacheKey: createLoggableKey(rawKey),
+    });
 
     const cached = this.clientCache.get(stableKey)?.client;
     if (cached) {
-      clientLogger.debug(
-        {
-          authMode: this.getAuthMode(),
-          ...this.getLoggingContext(context),
-          cacheSize: this.clientCache.size,
-        },
-        "Cache hit",
-      );
+      logger.debug("Cache hit", {
+        authMode: this.getAuthMode(),
+        ...this.getLoggingContext(context),
+        cacheSize: this.clientCache.size,
+      });
       return cached;
     }
 
     const existingPromise = this.pendingRequests.get(stableKey);
     if (existingPromise) {
-      clientLogger.debug(
-        {
-          authMode: this.getAuthMode(),
-          ...this.getLoggingContext(context),
-        },
-        "Found pending request",
-      );
+      logger.debug("Found pending request", {
+        authMode: this.getAuthMode(),
+        ...this.getLoggingContext(context),
+      });
       return existingPromise;
     }
 
-    clientLogger.debug(
-      {
-        authMode: this.getAuthMode(),
-        ...this.getLoggingContext(context),
-      },
-      "Cache miss, creating new client",
-    );
+    logger.debug("Cache miss, creating new client", {
+      authMode: this.getAuthMode(),
+      ...this.getLoggingContext(context),
+    });
 
     const promise = this.createClientInternal(context, options, stableKey);
     this.pendingRequests.set(stableKey, promise);
@@ -325,15 +288,12 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
 
     this.clientCache.set(cacheKey, entry);
 
-    clientLogger.debug(
-      {
-        authMode: this.getAuthMode(),
-        ...this.getLoggingContext(context),
-        slidingTTL: this.config.clientCache.slidingTtl,
-        cacheSize: this.clientCache.size,
-      },
-      "Client created and cached",
-    );
+    logger.debug("Client created and cached", {
+      authMode: this.getAuthMode(),
+      ...this.getLoggingContext(context),
+      slidingTTL: this.config.clientCache.slidingTtl,
+      cacheSize: this.clientCache.size,
+    });
 
     return client;
   }
@@ -341,15 +301,12 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
   clearCache(): void {
     this.clientCache.clear();
     this.credentialCache.clear();
-    clientLogger.debug({ authMode: this.getAuthMode() }, "All caches cleared");
+    logger.debug("All caches cleared", { authMode: this.getAuthMode() });
   }
 
   clearCredentialCache(): void {
     this.credentialCache.clear();
-    credentialLogger.debug(
-      { authMode: this.getAuthMode() },
-      "Credential cache cleared",
-    );
+    logger.debug("Credential cache cleared", { authMode: this.getAuthMode() });
   }
 
   removeCachedClientByContext(context: TContext, options?: TOptions): boolean {
@@ -358,16 +315,13 @@ export abstract class BaseClientManager<TClient, TContext, TOptions = void> {
 
     const deleted = this.clientCache.delete(stableKey);
 
-    clientLogger.debug(
-      {
-        authMode: this.getAuthMode(),
-        ...this.getLoggingContext(context),
-        cacheKey: createLoggableKey(rawKey),
-        deleted,
-        cacheSize: this.clientCache.size,
-      },
-      "Cache entry removed by context",
-    );
+    logger.debug("Cache entry removed by context", {
+      authMode: this.getAuthMode(),
+      ...this.getLoggingContext(context),
+      cacheKey: createLoggableKey(rawKey),
+      deleted,
+      cacheSize: this.clientCache.size,
+    });
     return deleted;
   }
 

@@ -8,7 +8,8 @@ describe("Azure Client Pool", () => {
     expect(typeof module.createClientProvider).toBe("function");
     expect(typeof module.createClientProviderWithMapper).toBe("function");
     expect(typeof module.McpRequestMapper).toBe("function");
-    expect(typeof module.logger).toBe("object");
+    expect(typeof module.setRootLogger).toBe("function");
+    expect(typeof module.getLogger).toBe("function");
   });
 
   test("should have correct package structure", () => {

@@ -7,7 +7,9 @@ import {
 import { type DelegatedAuthContext } from "./auth-context.js";
 import { type DelegatedCredentialProvider as IDelegatedCredentialProvider } from "./credential-types.js";
 import { type DelegatedAuthenticationConfig } from "../config/configuration.js";
-import { credentialLogger } from "../utils/logging.js";
+import { getLogger } from "../utils/logging.js";
+
+const logger = getLogger("delegated-provider");
 
 export class DelegatedCredentialProvider
   implements IDelegatedCredentialProvider
@@ -40,21 +42,15 @@ export class DelegatedCredentialProvider
 
     const delegatedContext = context;
 
-    credentialLogger.debug(
-      {
-        tenantId: delegatedContext.tenantId,
-      },
-      "Creating OBO credential",
-    );
+    logger.debug("Creating OBO credential", {
+      tenantId: delegatedContext.tenantId,
+    });
 
     const credential = this.createOBOCredential(delegatedContext);
 
-    credentialLogger.debug(
-      {
-        tenantId: delegatedContext.tenantId,
-      },
-      "OBO credential created",
-    );
+    logger.debug("OBO credential created", {
+      tenantId: delegatedContext.tenantId,
+    });
 
     return credential;
   }
@@ -71,12 +67,14 @@ export class DelegatedCredentialProvider
     if (this.usesCertificate) {
       const options: OnBehalfOfCredentialCertificateOptions = {
         ...baseOptions,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         certificatePath: this.config.certificatePath!,
       };
       return new OnBehalfOfCredential(options);
     } else {
       const options: OnBehalfOfCredentialSecretOptions = {
         ...baseOptions,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         clientSecret: this.config.clientSecret!,
       };
       return new OnBehalfOfCredential(options);

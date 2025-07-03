@@ -1,7 +1,9 @@
 import { AzureCliCredential, type TokenCredential } from "@azure/identity";
 import { type ApplicationAuthContext } from "./auth-context.js";
 import { type ApplicationCredentialProvider as IApplicationCredentialProvider } from "./credential-types.js";
-import { credentialLogger } from "../utils/logging.js";
+import { getLogger } from "../utils/logging.js";
+
+const logger = getLogger("application-provider");
 
 export class ApplicationCredentialProvider
   implements IApplicationCredentialProvider
@@ -9,7 +11,7 @@ export class ApplicationCredentialProvider
   async createCredential(
     _context: ApplicationAuthContext,
   ): Promise<TokenCredential> {
-    credentialLogger.debug({}, "Creating AzureCliCredential");
+    logger.debug("Creating AzureCliCredential");
     return new AzureCliCredential();
   }
 }

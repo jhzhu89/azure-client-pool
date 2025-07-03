@@ -19,6 +19,7 @@ export type {
   ApplicationAuthRequest,
   DelegatedAuthRequest,
   ClientFactory,
+  Logger,
 } from "./types/index.js";
 
-export { logger } from "./utils/logging.js";
+export { getLogger, setRootLogger } from "./utils/logging.js";

@@ -6,3 +6,5 @@ export type {
 } from "./auth-types.js";
 
 export type { ClientFactory } from "./client-types.js";
+
+export type { Logger } from "./logger.js";

@@ -1,5 +1,7 @@
-import { configLogger } from "../utils/logging.js";
+import { getLogger } from "../utils/logging.js";
 import { type JwtConfig } from "../validation/jwt-validator.js";
+
+const logger = getLogger("configuration");
 
 export interface AzureAuthConfig {
   authMode: "application" | "delegated";
@@ -49,7 +51,7 @@ export interface ClientManagerConfig {
 }
 
 export function loadAzureAuthConfig(): AzureAuthConfig {
-  configLogger.debug({}, "Loading Azure core config");
+  logger.debug("Loading Azure core config");
 
   const requiredEnvVars = ["AZURE_CLIENT_ID", "AZURE_TENANT_ID"];
 
@@ -85,24 +87,22 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
 
   const nodeEnv = process.env.NODE_ENV || "development";
 
-  configLogger.debug(
-    {
-      nodeEnv,
-      authMode,
-      authMethod:
-        authMode === "delegated"
-          ? process.env.AZURE_CLIENT_SECRET
-            ? "secret"
-            : "certificate"
-          : "default",
-      tenantId: process.env.AZURE_TENANT_ID,
-    },
-    "Config loaded",
-  );
+  logger.debug("Config loaded", {
+    nodeEnv,
+    authMode,
+    authMethod:
+      authMode === "delegated"
+        ? process.env.AZURE_CLIENT_SECRET
+          ? "secret"
+          : "certificate"
+        : "default",
+    tenantId: process.env.AZURE_TENANT_ID,
+  });
 
   return {
     authMode: authMode as "application" | "delegated",
     azure: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       clientId: process.env.AZURE_CLIENT_ID!,
       ...(process.env.AZURE_CLIENT_SECRET && {
         clientSecret: process.env.AZURE_CLIENT_SECRET,
@@ -113,6 +113,7 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
       ...(process.env.AZURE_CLIENT_CERTIFICATE_PASSWORD && {
         certificatePassword: process.env.AZURE_CLIENT_CERTIFICATE_PASSWORD,
       }),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       tenantId: process.env.AZURE_TENANT_ID!,
     },
     jwt: {

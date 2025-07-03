@@ -6,7 +6,9 @@ import {
   ParsedJwtToken as Token,
 } from "./parsed-token.js";
 import { AuthError, AUTH_ERROR_CODES } from "../utils/errors.js";
-import { jwtLogger } from "../utils/logging.js";
+import { getLogger } from "../utils/logging.js";
+
+const logger = getLogger("jwt-validator");
 
 export interface JwtConfig {
   clientId: string;
@@ -48,26 +50,20 @@ export class JwtHandler {
 
   async validateToken(accessToken: string): Promise<ParsedJwtToken> {
     try {
-      jwtLogger.debug({ tenantId: this.config.tenantId }, "Validating token");
+      logger.debug("Validating token", { tenantId: this.config.tenantId });
       const payload = await this.verifyToken(accessToken);
       const claims = this.extractClaims(payload);
-      jwtLogger.debug(
-        {
-          tenantId: claims.tenantId,
-          userObjectId: claims.userObjectId,
-          expiresAt: new Date(claims.expiresAt).toISOString(),
-        },
-        "Token validated",
-      );
+      logger.debug("Token validated", {
+        tenantId: claims.tenantId,
+        userObjectId: claims.userObjectId,
+        expiresAt: new Date(claims.expiresAt).toISOString(),
+      });
       return new Token(claims, accessToken);
     } catch (error) {
-      jwtLogger.error(
-        {
-          tenantId: this.config.tenantId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        "Token validation failed",
-      );
+      logger.error("Token validation failed", {
+        tenantId: this.config.tenantId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw new AuthError(
         AUTH_ERROR_CODES.jwt_validation_failed,
         `Token validation failed: ${error instanceof Error ? error.message : error}`,
