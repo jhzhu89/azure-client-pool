@@ -1,6 +1,6 @@
 {
   "name": "@jhzhu89/azure-client-pool",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Azure client lifecycle management with intelligent caching and authentication",
   "keywords": [
     "azure",
@@ -49,8 +49,10 @@
     "build:clean": "rm -rf dist",
     "dev": "bun --watch src/index.ts",
     "test": "bun test",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
     "test:coverage": "bun test --coverage",
-    "test:watch": "bun test --watch",
     "lint": "bun x eslint src --ext .ts",
     "lint:fix": "bun x eslint src --ext .ts --fix",
     "docs": "bun x typedoc",
@@ -78,9 +80,11 @@
     "@types/node": "^24.0.8",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",
+    "@vitest/ui": "^3.2.4",
     "eslint": "^9.30.0",
     "tsup": "^8.5.0",
     "typedoc": "^0.28.7",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

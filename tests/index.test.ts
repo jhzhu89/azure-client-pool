@@ -19,9 +19,7 @@ describe("Azure Client Pool", () => {
     expect(packageJson.main).toBe("./dist/index.js");
     expect(packageJson.module).toBe("./dist/index.mjs");
   });
-});
 
-describe("Performance", () => {
   test("module import should be fast", async () => {
     const start = performance.now();
     await import("../src/index.js");

@@ -53,14 +53,6 @@ export interface ClientManagerConfig {
 export function loadAzureAuthConfig(): AzureAuthConfig {
   logger.debug("Loading Azure core config");
 
-  const requiredEnvVars = ["AZURE_CLIENT_ID", "AZURE_TENANT_ID"];
-
-  for (const envVar of requiredEnvVars) {
-    if (!process.env[envVar]) {
-      throw new Error(`Required environment variable ${envVar} is not set`);
-    }
-  }
-
   const authMode = process.env.AZURE_AUTH_MODE || "application";
   if (authMode !== "application" && authMode !== "delegated") {
     throw new Error(
@@ -69,6 +61,14 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
   }
 
   if (authMode === "delegated") {
+    const requiredEnvVars = ["AZURE_CLIENT_ID", "AZURE_TENANT_ID"];
+
+    for (const envVar of requiredEnvVars) {
+      if (!process.env[envVar]) {
+        throw new Error(`Required environment variable ${envVar} is not set`);
+      }
+    }
+
     const hasSecret = !!process.env.AZURE_CLIENT_SECRET;
     const hasCertificate = !!process.env.AZURE_CLIENT_CERTIFICATE_PATH;
 
@@ -102,8 +102,7 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
   return {
     authMode: authMode as "application" | "delegated",
     azure: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      clientId: process.env.AZURE_CLIENT_ID!,
+      clientId: process.env.AZURE_CLIENT_ID || "",
       ...(process.env.AZURE_CLIENT_SECRET && {
         clientSecret: process.env.AZURE_CLIENT_SECRET,
       }),
@@ -113,8 +112,7 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
       ...(process.env.AZURE_CLIENT_CERTIFICATE_PASSWORD && {
         certificatePassword: process.env.AZURE_CLIENT_CERTIFICATE_PASSWORD,
       }),
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      tenantId: process.env.AZURE_TENANT_ID!,
+      tenantId: process.env.AZURE_TENANT_ID || "",
     },
     jwt: {
       ...(process.env.JWT_AUDIENCE && { audience: process.env.JWT_AUDIENCE }),
@@ -151,10 +149,6 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
 }
 
 export function validateAzureAuthConfig(config: AzureAuthConfig): void {
-  if (!config.azure.clientId || !config.azure.tenantId) {
-    throw new Error("Azure configuration is incomplete");
-  }
-
   if (
     !config.authMode ||
     (config.authMode !== "application" && config.authMode !== "delegated")
@@ -163,6 +157,10 @@ export function validateAzureAuthConfig(config: AzureAuthConfig): void {
   }
 
   if (config.authMode === "delegated") {
+    if (!config.azure.clientId || !config.azure.tenantId) {
+      throw new Error("Azure configuration is incomplete");
+    }
+
     const hasSecret = !!config.azure.clientSecret;
     const hasCertificate = !!config.azure.certificatePath;
 
