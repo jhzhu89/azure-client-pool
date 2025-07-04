@@ -1,16 +1,54 @@
 import { getLogger } from "../utils/logging.js";
-import { type JwtConfig } from "../validation/jwt-validator.js";
 
 const logger = getLogger("configuration");
 
-export interface AzureAuthConfig {
-  authMode: "application" | "delegated";
+export interface JwtConfig {
+  clientId: string;
+  tenantId: string;
+  audience?: string;
+  issuer?: string;
+  clockTolerance: number;
+  cacheMaxAge: number;
+  jwksRequestsPerMinute: number;
+}
+
+export interface ClientCacheConfig {
+  slidingTtl: number;
+  maxSize: number;
+}
+
+export interface CredentialCacheConfig {
+  slidingTtl: number;
+  maxSize: number;
+  absoluteTtl: number;
+}
+
+export interface ClientManagerConfig {
+  cacheKeyPrefix: string;
+  clientCache: ClientCacheConfig;
+  credentialCache: CredentialCacheConfig;
+}
+
+export interface ApplicationAuthConfig {
+  managedIdentityClientId?: string;
+}
+
+export interface DelegatedAuthConfig {
+  clientId: string;
+  tenantId: string;
+  clientSecret?: string;
+  certificatePath?: string;
+  certificatePassword?: string;
+}
+
+interface RawEnvironmentConfig {
   azure: {
     clientId: string;
     clientSecret?: string;
     certificatePath?: string;
     certificatePassword?: string;
     tenantId: string;
+    managedIdentityClientId?: string;
   };
   jwt: {
     audience?: string;
@@ -20,87 +58,26 @@ export interface AzureAuthConfig {
     jwksRequestsPerMinute: number;
   };
   cache: {
-    cacheKeyPrefix: string;
+    keyPrefix: string;
     clientCacheSlidingTtl?: number;
     clientCacheMaxSize?: number;
     credentialCacheSlidingTtl?: number;
     credentialCacheMaxSize?: number;
-    credentialCacheAbsoluteTTL?: number;
+    credentialCacheAbsoluteTtl?: number;
   };
 }
 
-export interface DelegatedAuthenticationConfig {
-  clientId: string;
-  clientSecret?: string;
-  certificatePath?: string;
-  certificatePassword?: string;
-  tenantId: string;
-}
-
-export interface ClientManagerConfig {
-  cacheKeyPrefix: string;
-  clientCache: {
-    slidingTtl: number;
-    maxSize: number;
-  };
-  credentialCache: {
-    slidingTtl: number;
-    maxSize: number;
-    absoluteTTL: number;
-  };
-}
-
-export function loadAzureAuthConfig(): AzureAuthConfig {
-  logger.debug("Loading Azure core config");
-
-  const authMode = process.env.AZURE_AUTH_MODE || "application";
-  if (authMode !== "application" && authMode !== "delegated") {
-    throw new Error(
-      `AZURE_AUTH_MODE must be either 'application' or 'delegated', got: ${authMode}`,
-    );
-  }
-
-  if (authMode === "delegated") {
-    const requiredEnvVars = ["AZURE_CLIENT_ID", "AZURE_TENANT_ID"];
-
-    for (const envVar of requiredEnvVars) {
-      if (!process.env[envVar]) {
-        throw new Error(`Required environment variable ${envVar} is not set`);
-      }
-    }
-
-    const hasSecret = !!process.env.AZURE_CLIENT_SECRET;
-    const hasCertificate = !!process.env.AZURE_CLIENT_CERTIFICATE_PATH;
-
-    if (!hasSecret && !hasCertificate) {
-      throw new Error(
-        "Either AZURE_CLIENT_SECRET or AZURE_CLIENT_CERTIFICATE_PATH must be set for delegated auth mode",
-      );
-    }
-
-    if (hasSecret && hasCertificate) {
-      throw new Error(
-        "Only one of AZURE_CLIENT_SECRET or AZURE_CLIENT_CERTIFICATE_PATH should be set",
-      );
-    }
-  }
+function loadRawEnvironmentConfig(): RawEnvironmentConfig {
+  logger.debug("Loading environment configuration");
 
   const nodeEnv = process.env.NODE_ENV || "development";
 
-  logger.debug("Config loaded", {
+  logger.debug("Configuration loaded", {
     nodeEnv,
-    authMode,
-    authMethod:
-      authMode === "delegated"
-        ? process.env.AZURE_CLIENT_SECRET
-          ? "secret"
-          : "certificate"
-        : "default",
     tenantId: process.env.AZURE_TENANT_ID,
   });
 
   return {
-    authMode: authMode as "application" | "delegated",
     azure: {
       clientId: process.env.AZURE_CLIENT_ID || "",
       ...(process.env.AZURE_CLIENT_SECRET && {
@@ -113,6 +90,9 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
         certificatePassword: process.env.AZURE_CLIENT_CERTIFICATE_PASSWORD,
       }),
       tenantId: process.env.AZURE_TENANT_ID || "",
+      ...(process.env.AZURE_MANAGED_IDENTITY_CLIENT_ID && {
+        managedIdentityClientId: process.env.AZURE_MANAGED_IDENTITY_CLIENT_ID,
+      }),
     },
     jwt: {
       ...(process.env.JWT_AUDIENCE && { audience: process.env.JWT_AUDIENCE }),
@@ -124,7 +104,7 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
       ),
     },
     cache: {
-      cacheKeyPrefix: process.env.CACHE_KEY_PREFIX || "client",
+      keyPrefix: process.env.CACHE_KEY_PREFIX || "client",
       ...(process.env.CACHE_CLIENT_SLIDING_TTL && {
         clientCacheSlidingTtl: parseInt(process.env.CACHE_CLIENT_SLIDING_TTL),
       }),
@@ -140,7 +120,7 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
         credentialCacheMaxSize: parseInt(process.env.CACHE_CREDENTIAL_MAX_SIZE),
       }),
       ...(process.env.CACHE_CREDENTIAL_ABSOLUTE_TTL && {
-        credentialCacheAbsoluteTTL: parseInt(
+        credentialCacheAbsoluteTtl: parseInt(
           process.env.CACHE_CREDENTIAL_ABSOLUTE_TTL,
         ),
       }),
@@ -148,35 +128,7 @@ export function loadAzureAuthConfig(): AzureAuthConfig {
   };
 }
 
-export function validateAzureAuthConfig(config: AzureAuthConfig): void {
-  if (
-    !config.authMode ||
-    (config.authMode !== "application" && config.authMode !== "delegated")
-  ) {
-    throw new Error("authMode must be either 'application' or 'delegated'");
-  }
-
-  if (config.authMode === "delegated") {
-    if (!config.azure.clientId || !config.azure.tenantId) {
-      throw new Error("Azure configuration is incomplete");
-    }
-
-    const hasSecret = !!config.azure.clientSecret;
-    const hasCertificate = !!config.azure.certificatePath;
-
-    if (!hasSecret && !hasCertificate) {
-      throw new Error(
-        "Either clientSecret or certificatePath must be provided for delegated auth mode",
-      );
-    }
-
-    if (hasSecret && hasCertificate) {
-      throw new Error(
-        "Only one of clientSecret or certificatePath should be provided",
-      );
-    }
-  }
-
+function validateRawEnvironmentConfig(config: RawEnvironmentConfig): void {
   if (
     config.jwt.clockTolerance < 0 ||
     config.jwt.cacheMaxAge <= 0 ||
@@ -186,108 +138,116 @@ export function validateAzureAuthConfig(config: AzureAuthConfig): void {
   }
 }
 
-let cachedConfig: AzureAuthConfig | null = null;
+function createApplicationAuthConfig(
+  raw: RawEnvironmentConfig,
+): ApplicationAuthConfig {
+  return {
+    ...(raw.azure.managedIdentityClientId && {
+      managedIdentityClientId: raw.azure.managedIdentityClientId,
+    }),
+  };
+}
 
-export function getAzureAuthConfig(): AzureAuthConfig {
-  if (!cachedConfig) {
-    cachedConfig = loadAzureAuthConfig();
-    validateAzureAuthConfig(cachedConfig);
+function createDelegatedAuthConfig(
+  raw: RawEnvironmentConfig,
+): DelegatedAuthConfig {
+  const {
+    clientId,
+    tenantId,
+    clientSecret,
+    certificatePath,
+    certificatePassword,
+  } = raw.azure;
+
+  if (!clientId || !tenantId) {
+    throw new Error(
+      "AZURE_CLIENT_ID and AZURE_TENANT_ID must be set for delegated authentication",
+    );
   }
-  return cachedConfig;
+
+  const hasSecret = !!clientSecret;
+  const hasCertificate = !!certificatePath;
+
+  if (!hasSecret && !hasCertificate) {
+    throw new Error(
+      "Either AZURE_CLIENT_SECRET or AZURE_CLIENT_CERTIFICATE_PATH must be set for delegated authentication",
+    );
+  }
+
+  if (hasSecret && hasCertificate) {
+    throw new Error(
+      "Only one of AZURE_CLIENT_SECRET or AZURE_CLIENT_CERTIFICATE_PATH should be set",
+    );
+  }
+
+  return {
+    clientId,
+    tenantId,
+    ...(clientSecret && { clientSecret }),
+    ...(certificatePath && { certificatePath }),
+    ...(certificatePassword && { certificatePassword }),
+  };
+}
+
+function createJwtConfig(raw: RawEnvironmentConfig): JwtConfig {
+  const { clientId, tenantId } = raw.azure;
+
+  if (!clientId || !tenantId) {
+    throw new Error(
+      "AZURE_CLIENT_ID and AZURE_TENANT_ID must be set for JWT validation",
+    );
+  }
+
+  return {
+    clientId,
+    tenantId,
+    ...raw.jwt,
+  };
+}
+
+function createClientManagerConfig(
+  raw: RawEnvironmentConfig,
+): ClientManagerConfig {
+  return {
+    cacheKeyPrefix: raw.cache.keyPrefix,
+    clientCache: {
+      slidingTtl: raw.cache.clientCacheSlidingTtl ?? 45 * 60 * 1000,
+      maxSize: raw.cache.clientCacheMaxSize ?? 100,
+    },
+    credentialCache: {
+      slidingTtl: raw.cache.credentialCacheSlidingTtl ?? 2 * 60 * 60 * 1000,
+      maxSize: raw.cache.credentialCacheMaxSize ?? 200,
+      absoluteTtl: raw.cache.credentialCacheAbsoluteTtl ?? 8 * 60 * 60 * 1000,
+    },
+  };
+}
+
+let cachedRawConfig: RawEnvironmentConfig | null = null;
+
+function getRawConfig(): RawEnvironmentConfig {
+  if (!cachedRawConfig) {
+    cachedRawConfig = loadRawEnvironmentConfig();
+    validateRawEnvironmentConfig(cachedRawConfig);
+  }
+  return cachedRawConfig;
 }
 
 export function resetConfigCache(): void {
-  cachedConfig = null;
+  cachedRawConfig = null;
 }
 
-export function getDelegatedCredentialConfig(): DelegatedAuthenticationConfig {
-  const config = getAzureAuthConfig();
+export function getApplicationAuthConfig(): ApplicationAuthConfig {
+  return createApplicationAuthConfig(getRawConfig());
+}
 
-  if (config.authMode !== "delegated") {
-    throw new Error(
-      `Expected delegated auth mode, but got: ${config.authMode}`,
-    );
-  }
-
-  return {
-    clientId: config.azure.clientId,
-    ...(config.azure.clientSecret && {
-      clientSecret: config.azure.clientSecret,
-    }),
-    ...(config.azure.certificatePath && {
-      certificatePath: config.azure.certificatePath,
-    }),
-    ...(config.azure.certificatePassword && {
-      certificatePassword: config.azure.certificatePassword,
-    }),
-    tenantId: config.azure.tenantId,
-  };
+export function getDelegatedAuthConfig(): DelegatedAuthConfig {
+  return createDelegatedAuthConfig(getRawConfig());
 }
 
 export function getJwtConfig(): JwtConfig {
-  const config = getAzureAuthConfig();
-
-  if (config.authMode !== "delegated") {
-    throw new Error(
-      `JWT configuration is only available for delegated auth mode, but got: ${config.authMode}`,
-    );
-  }
-
-  return {
-    clientId: config.azure.clientId,
-    tenantId: config.azure.tenantId,
-    ...(config.jwt.audience && { audience: config.jwt.audience }),
-    ...(config.jwt.issuer && { issuer: config.jwt.issuer }),
-    clockTolerance: config.jwt.clockTolerance,
-    cacheMaxAge: config.jwt.cacheMaxAge,
-    jwksRequestsPerMinute: config.jwt.jwksRequestsPerMinute,
-  };
+  return createJwtConfig(getRawConfig());
 }
 
-export function getDelegatedClientManagerConfig(): ClientManagerConfig {
-  const config = getAzureAuthConfig();
-
-  if (config.authMode !== "delegated") {
-    throw new Error(
-      `Delegated client manager configuration is only available for delegated auth mode, but got: ${config.authMode}`,
-    );
-  }
-
-  return {
-    cacheKeyPrefix: config.cache.cacheKeyPrefix,
-    clientCache: {
-      slidingTtl: config.cache.clientCacheSlidingTtl ?? 45 * 60 * 1000,
-      maxSize: config.cache.clientCacheMaxSize ?? 100,
-    },
-    credentialCache: {
-      slidingTtl: config.cache.credentialCacheSlidingTtl ?? 2 * 60 * 60 * 1000,
-      maxSize: config.cache.credentialCacheMaxSize ?? 200,
-      absoluteTTL:
-        config.cache.credentialCacheAbsoluteTTL ?? 8 * 60 * 60 * 1000,
-    },
-  };
-}
-
-export function getApplicationClientManagerConfig(): ClientManagerConfig {
-  const config = getAzureAuthConfig();
-
-  if (config.authMode !== "application") {
-    throw new Error(
-      `Application client manager configuration is only available for application auth mode, but got: ${config.authMode}`,
-    );
-  }
-
-  return {
-    cacheKeyPrefix: config.cache.cacheKeyPrefix,
-    clientCache: {
-      slidingTtl: config.cache.clientCacheSlidingTtl ?? 2 * 60 * 60 * 1000,
-      maxSize: config.cache.clientCacheMaxSize ?? 50,
-    },
-    credentialCache: {
-      slidingTtl: config.cache.credentialCacheSlidingTtl ?? 4 * 60 * 60 * 1000,
-      maxSize: config.cache.credentialCacheMaxSize ?? 10,
-      absoluteTTL:
-        config.cache.credentialCacheAbsoluteTTL ?? 12 * 60 * 60 * 1000,
-    },
-  };
+export function getClientManagerConfig(): ClientManagerConfig {
+  return createClientManagerConfig(getRawConfig());
 }

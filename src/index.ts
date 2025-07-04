@@ -1,25 +1,22 @@
 export {
-  getAzureAuthConfig,
-  type AzureAuthConfig,
-} from "./config/configuration.js";
-
-export {
   createClientProvider,
   createClientProviderWithMapper,
-  type AuthenticatedClientProvider,
-} from "./managers/authenticated-provider.js";
+  type ClientProvider,
+} from "./client-pool/provider.js";
 
 export {
   McpRequestMapper,
   type RequestMapper,
-} from "./utils/request-mapper.js";
+} from "./client-pool/request-mapper.js";
 
 export type {
   AuthRequest,
   ApplicationAuthRequest,
   DelegatedAuthRequest,
+  CompositeAuthRequest,
   ClientFactory,
-  Logger,
-} from "./types/index.js";
+} from "./types.js";
 
-export { getLogger, setRootLogger } from "./utils/logging.js";
+export { AuthMode, CredentialType } from "./types.js";
+
+export { getLogger, setRootLogger, type Logger } from "./utils/logging.js";

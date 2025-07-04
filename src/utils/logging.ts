@@ -1,5 +1,12 @@
 import { pino, type Logger as PinoLogger } from "pino";
-import type { Logger } from "../types/logger.js";
+
+export interface Logger {
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, context?: Record<string, unknown>): void;
+  child?(context: Record<string, unknown>): Logger;
+}
 
 function createPinoAdapter(pinoLogger: PinoLogger): Logger {
   return {

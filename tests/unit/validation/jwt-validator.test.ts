@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, mock } from "bun:test";
-import { JwtHandler } from "../../../src/validation/jwt-validator.js";
+import { JwtHandler } from "../../../src/auth/jwt/validator.js";
 import { AuthError, AUTH_ERROR_CODES } from "../../../src/utils/errors.js";
 import { mockJwtConfigs } from "../../fixtures/mock-data.js";
 

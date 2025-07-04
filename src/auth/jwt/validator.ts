@@ -4,21 +4,12 @@ import {
   type ParsedJwtToken,
   type JwtUserClaims,
   ParsedJwtToken as Token,
-} from "./parsed-token.js";
-import { AuthError, AUTH_ERROR_CODES } from "../utils/errors.js";
-import { getLogger } from "../utils/logging.js";
+} from "./token.js";
+import { AuthError, AUTH_ERROR_CODES } from "../../utils/errors.js";
+import { getLogger } from "../../utils/logging.js";
+import { type JwtConfig } from "../../config/configuration.js";
 
 const logger = getLogger("jwt-validator");
-
-export interface JwtConfig {
-  clientId: string;
-  tenantId: string;
-  audience?: string;
-  issuer?: string;
-  clockTolerance: number;
-  cacheMaxAge: number;
-  jwksRequestsPerMinute: number;
-}
 
 export class JwtHandler {
   private readonly jwksClient: jwksClient.JwksClient;
@@ -50,10 +41,10 @@ export class JwtHandler {
 
   async validateToken(accessToken: string): Promise<ParsedJwtToken> {
     try {
-      logger.debug("Validating token", { tenantId: this.config.tenantId });
+      logger.debug("Validating JWT token", { tenantId: this.config.tenantId });
       const payload = await this.verifyToken(accessToken);
       const claims = this.extractClaims(payload);
-      logger.debug("Token validated", {
+      logger.debug("JWT token validated", {
         tenantId: claims.tenantId,
         userObjectId: claims.userObjectId,
         expiresAt: new Date(claims.expiresAt).toISOString(),

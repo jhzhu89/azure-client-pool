@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import {
-  loadAzureAuthConfig,
-  validateAzureAuthConfig,
-  getAzureAuthConfig,
+  getDelegatedAuthConfig,
+  getClientManagerConfig,
   resetConfigCache,
-  getDelegatedCredentialConfig,
-  getApplicationClientManagerConfig,
 } from "../../../src/config/configuration.js";
 import {
   applicationModeEnv,
