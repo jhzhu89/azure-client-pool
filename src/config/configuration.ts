@@ -1,4 +1,5 @@
 import { getLogger } from "../utils/logging.js";
+import { ApplicationAuthStrategy } from "../types.js";
 
 const logger = getLogger("configuration");
 
@@ -31,6 +32,7 @@ export interface ClientManagerConfig {
 
 export interface ApplicationAuthConfig {
   managedIdentityClientId?: string;
+  strategy: ApplicationAuthStrategy;
 }
 
 export interface DelegatedAuthConfig {
@@ -49,6 +51,7 @@ interface RawEnvironmentConfig {
     certificatePassword?: string;
     tenantId: string;
     managedIdentityClientId?: string;
+    applicationAuthStrategy?: string;
   };
   jwt: {
     audience?: string;
@@ -92,6 +95,9 @@ function loadRawEnvironmentConfig(): RawEnvironmentConfig {
       tenantId: process.env.AZURE_TENANT_ID || "",
       ...(process.env.AZURE_MANAGED_IDENTITY_CLIENT_ID && {
         managedIdentityClientId: process.env.AZURE_MANAGED_IDENTITY_CLIENT_ID,
+      }),
+      ...(process.env.AZURE_APPLICATION_AUTH_STRATEGY && {
+        applicationAuthStrategy: process.env.AZURE_APPLICATION_AUTH_STRATEGY,
       }),
     },
     jwt: {
@@ -141,10 +147,20 @@ function validateRawEnvironmentConfig(config: RawEnvironmentConfig): void {
 function createApplicationAuthConfig(
   raw: RawEnvironmentConfig,
 ): ApplicationAuthConfig {
+  const strategyString =
+    raw.azure.applicationAuthStrategy || ApplicationAuthStrategy.Chain;
+
+  const strategy = Object.values(ApplicationAuthStrategy).includes(
+    strategyString as ApplicationAuthStrategy,
+  )
+    ? (strategyString as ApplicationAuthStrategy)
+    : ApplicationAuthStrategy.Chain;
+
   return {
     ...(raw.azure.managedIdentityClientId && {
       managedIdentityClientId: raw.azure.managedIdentityClientId,
     }),
+    strategy,
   };
 }
 

@@ -5,6 +5,7 @@ import { type AuthRequest } from "../types.js";
 import { type AuthContext, AuthContextFactory } from "../auth/context.js";
 import { JwtHandler } from "../auth/jwt/validator.js";
 import {
+  getApplicationAuthConfig,
   getDelegatedAuthConfig,
   getClientManagerConfig,
   getJwtConfig,
@@ -86,10 +87,12 @@ class ClientProviderImpl<TClient, TOptions = void>
 export async function createClientProvider<TClient, TOptions = void>(
   clientFactory: ClientFactory<TClient, TOptions>,
 ): Promise<ClientProvider<TClient, TOptions>> {
+  const applicationConfig = getApplicationAuthConfig();
   const delegatedConfig = getDelegatedAuthConfig();
   const clientManagerConfig = getClientManagerConfig();
 
   const credentialManager = new CredentialManager(
+    applicationConfig,
     delegatedConfig,
     clientManagerConfig,
   );

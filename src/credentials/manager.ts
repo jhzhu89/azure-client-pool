@@ -2,6 +2,7 @@ import { type TokenCredential } from "@azure/identity";
 import {
   type ClientManagerConfig,
   type DelegatedAuthConfig,
+  type ApplicationAuthConfig,
 } from "../config/configuration.js";
 import {
   type AuthContext,
@@ -35,10 +36,14 @@ export class CredentialManager {
   private readonly credentialFactory: CredentialFactory;
 
   constructor(
+    applicationConfig: ApplicationAuthConfig,
     delegatedConfig: DelegatedAuthConfig,
     private readonly config: ClientManagerConfig,
   ) {
-    this.credentialFactory = new CredentialFactory(delegatedConfig);
+    this.credentialFactory = new CredentialFactory(
+      applicationConfig,
+      delegatedConfig,
+    );
     this.applicationCredentialCache = this.createCredentialCache(
       "application-credential",
     );

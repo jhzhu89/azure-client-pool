@@ -46,3 +46,12 @@ export interface ClientFactory<TClient, TOptions = void> {
   ): Promise<TClient>;
   getClientFingerprint?(options?: TOptions): string | undefined;
 }
+
+export const ApplicationAuthStrategy = {
+  Cli: "cli",
+  ManagedIdentity: "mi",
+  Chain: "chain",
+} as const;
+
+export type ApplicationAuthStrategy =
+  (typeof ApplicationAuthStrategy)[keyof typeof ApplicationAuthStrategy];
