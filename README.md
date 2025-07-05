@@ -1,57 +1,63 @@
 # @jhzhu89/azure-client-pool
 
-> Azure client management with caching and dual authentication modes
+> Azure client lifecycle management with caching and multiple authentication strategies
 
 [![npm version](https://badge.fury.io/js/%40jhzhu89%2Fazure-client-pool.svg)](https://badge.fury.io/js/%40jhzhu89%2Fazure-client-pool)
 [![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%230074c1.svg)](http://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Why This Library?
+## Overview
 
-When building applications with Azure SDK, you need to:
-- Reuse clients efficiently to avoid creating new instances per request
-- Handle different authentication scenarios (local development vs production)
-- Manage On-Behalf-Of flows for user-delegated access
-- Cache clients per user and configuration (different endpoints, options)
+A TypeScript library for managing Azure SDK clients with automatic caching and multiple authentication strategies. It addresses common patterns when working with Azure services:
 
-This library provides a unified interface for these patterns with intelligent caching.
+- Client instance reuse to avoid creation overhead
+- Multiple authentication flows (application credentials, delegated access)
+- Intelligent caching based on authentication context and client configuration
+- On-Behalf-Of (OBO) token flows for multi-user applications
 
-## Authentication Modes
+## Authentication Strategies
 
 ### Application Mode
-- **Uses**: Azure CLI credentials (`az login`)
-- **Best for**: Local development, single-user applications, prototyping
-- **Caching**: Simple global cache
-- **Setup**: Minimal configuration required
+Supports different credential strategies:
+
+- **CLI Strategy** (`cli`): Uses Azure CLI user credentials (`az login`) - user identity
+- **Managed Identity Strategy** (`mi`): Uses Azure Managed Identity - application identity
+- **Chain Strategy** (`chain`): Tries CLI user credentials first, falls back to Managed Identity
+
+CLI strategy uses the logged-in user's identity, while Managed Identity uses the application's identity. Chain strategy provides flexibility for local development (user) and cloud deployment (application).
 
 ### Delegated Mode  
-- **Uses**: On-Behalf-Of flow with user JWT tokens
-- **Best for**: Multi-user web applications, production environments
-- **Caching**: Per-user and per-tenant with configuration fingerprinting
-- **Setup**: Requires client secret or certificate
+Uses On-Behalf-Of (OBO) flow with user access tokens from OAuth2/OpenID Connect flows.
 
-## Smart Caching
+- Requires application credentials (client secret or certificate)
+- Maintains user identity and permissions through token delegation
+- Suitable for multi-user web applications
 
-The library automatically caches clients based on:
-- **Authentication context** (user identity, tenant)
-- **Client configuration** (endpoints, options)
+### Composite Mode
+Supports both application and delegated credentials within the same provider instance.
 
-For example, the same user accessing different Kusto clusters will get separate cached clients:
-- `mykusto.eastus.kusto.windows.net`
-- `mykusto.westus.kusto.windows.net`
+## Caching Behavior
 
-Each configuration gets its own cache entry, preventing conflicts while maximizing reuse.
+Clients are cached based on:
+- **Authentication context**: User identity, tenant, credential type
+- **Client configuration**: Endpoints, options, and other parameters
 
-## Quick Start
+Each unique combination gets its own cache entry. For example:
+- Different users accessing the same service get separate cached clients
+- Same user accessing different endpoints (e.g., different Kusto clusters) get separate cached clients
+- Different client configurations result in separate cache entries
 
-### Application Authentication (Development)
+## Usage
+
+### Basic Application Authentication
 
 ```typescript
 import { createClientProvider, type ApplicationAuthRequest, type ClientFactory } from '@jhzhu89/azure-client-pool';
 
 // Define your client factory
 const clientFactory: ClientFactory<YourClient, YourOptions> = {
-  async createClient(credential, options) {
+  async createClient(credentialProvider, options) {
+    const credential = await credentialProvider.getCredential('application');
     return new YourAzureClient(credential, options);
   },
   getClientFingerprint(options) {
@@ -59,19 +65,19 @@ const clientFactory: ClientFactory<YourClient, YourOptions> = {
   }
 };
 
-// Get authenticated client
+// Create provider and get authenticated client
 const provider = await createClientProvider(clientFactory);
 const client = await provider.getAuthenticatedClient({ mode: 'application' });
 ```
 
-### Delegated Authentication (Production)
+### Delegated Authentication
 
 ```typescript
 import { type DelegatedAuthRequest } from '@jhzhu89/azure-client-pool';
 
 const authRequest: DelegatedAuthRequest = {
   mode: 'delegated',
-  userToken: 'user-jwt-token-from-request'
+  accessToken: 'user-access-token-from-oauth-flow'
 };
 
 const client = await provider.getAuthenticatedClient(authRequest);
@@ -87,15 +93,15 @@ import { createClientProviderWithMapper, type RequestMapper } from '@jhzhu89/azu
 // Define your custom request format
 interface MyCustomRequest {
   userId: string;
-  userToken: string;
+  accessToken: string;
   endpoint: string;
 }
 
 // Map custom requests to auth requests and options
 const requestMapper: RequestMapper<MyCustomRequest, { endpoint: string }> = {
-  mapToAuthRequest: (request, authMode) => ({
+  mapToAuthRequest: (request) => ({
     mode: 'delegated',
-    userToken: request.userToken
+    accessToken: request.accessToken
   }),
   mapToOptions: (request) => ({ endpoint: request.endpoint })
 };
@@ -106,7 +112,7 @@ const provider = await createClientProviderWithMapper(clientFactory, requestMapp
 // Use with your custom request format
 const client = await provider.getAuthenticatedClient({
   userId: 'user123',
-  userToken: 'jwt-token',
+  accessToken: 'access-token',
   endpoint: 'https://mycluster.kusto.windows.net'
 });
 ```
@@ -114,52 +120,77 @@ const client = await provider.getAuthenticatedClient({
 ## Configuration
 
 ### Application Mode
+
+Set the authentication strategy via environment variable:
+
 ```bash
-# `application` is the default auth mode
-export AZURE_AUTH_MODE=application
+# Default strategy (tries CLI, falls back to Managed Identity)
+export AZURE_APPLICATION_AUTH_STRATEGY=chain
+
+# CLI only
+export AZURE_APPLICATION_AUTH_STRATEGY=cli
+
+# Managed Identity only
+export AZURE_APPLICATION_AUTH_STRATEGY=mi
+
+# Optional: Specify Managed Identity client ID
+export AZURE_MANAGED_IDENTITY_CLIENT_ID=your-client-id
 ```
 
 ### Delegated Mode
+
 ```bash
-export AZURE_AUTH_MODE=delegated
 export AZURE_CLIENT_ID=your-client-id
 export AZURE_TENANT_ID=your-tenant-id
+
+# Option 1: Client secret
 export AZURE_CLIENT_SECRET=your-client-secret
-# OR
+
+# Option 2: Certificate
 export AZURE_CLIENT_CERTIFICATE_PATH=/path/to/cert.pem
+export AZURE_CLIENT_CERTIFICATE_PASSWORD=cert-password
 ```
 
-## When to Use Which Mode?
+## Use Cases
 
-| Scenario | Use Application Mode | Use Delegated Mode |
-|----------|---------------------|-------------------|
-| Local development | ✅ Simple setup with `az login` | ❌ Requires additional config |
-| Single-user apps | ✅ Direct Azure CLI integration | ❌ Unnecessary complexity |
-| Multi-user web apps | ❌ No user context | ✅ Proper user delegation |
-| Production APIs | ❌ Requires Azure CLI on server | ✅ Standard OAuth2 flow |
-| Calling Microsoft Graph | ⚠️ Limited to CLI user | ✅ Full user permissions |
+| Scenario | Application Mode | Delegated Mode |
+|----------|------------------|----------------|
+| Local development | ✅ Azure CLI integration | ⚠️ Requires app registration |
+| CI/CD pipelines | ✅ Managed Identity or CLI | ❌ No user context |
+| Single-tenant apps | ✅ Direct credential access | ⚠️ Added complexity |
+| Multi-user web apps | ❌ No user context | ✅ Maintains user identity |
+| API services | ✅ Service identity | ✅ User delegation |
+| Microsoft Graph access | ⚠️ Limited to credential scope | ✅ User permissions |
 
 ## Installation
 
 ```bash
-# Using Bun
-bun add @jhzhu89/azure-client-pool
-
-# Using npm
 npm install @jhzhu89/azure-client-pool
-
-# Using pnpm  
-pnpm add @jhzhu89/azure-client-pool
 ```
 
-## Architecture
+Or using other package managers:
+
+```bash
+# Bun
+bun add @jhzhu89/azure-client-pool
+
+# pnpm  
+pnpm add @jhzhu89/azure-client-pool
+
+# Yarn
+yarn add @jhzhu89/azure-client-pool
+```
+
+## Features
 
 This library provides:
-- **ClientFactory pattern** for creating Azure SDK clients
-- **Intelligent caching** with TTL and size limits
-- **JWT validation** for delegated authentication
-- **Request deduplication** to prevent concurrent token requests
-- **TypeScript support** with full type safety
+
+- **Multiple authentication strategies**: Azure CLI, Managed Identity, and certificate/secret-based authentication
+- **Intelligent caching**: Automatic client reuse with configurable TTL and size limits
+- **JWT validation**: Built-in token validation for delegated authentication
+- **Request deduplication**: Prevents concurrent duplicate requests
+- **TypeScript support**: Full type safety and IntelliSense support
+- **Flexible request mapping**: Support for custom request formats
 
 ## Examples
 
@@ -183,7 +214,7 @@ bun run dev
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](./CONTRIBUTING.md) for details.
+Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
 
 ## License
 
@@ -194,4 +225,3 @@ MIT License - see the [LICENSE](./LICENSE) file for details.
 - [GitHub Repository](https://github.com/jhzhu89/azure-client-pool)
 - [npm Package](https://www.npmjs.com/package/@jhzhu89/azure-client-pool)
 - [Issues](https://github.com/jhzhu89/azure-client-pool/issues)
-- [Changelog](./CHANGELOG.md)

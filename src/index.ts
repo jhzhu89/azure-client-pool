@@ -7,6 +7,7 @@ export {
 export {
   McpRequestMapper,
   type RequestMapper,
+  type AuthRequestFactory,
 } from "./client-pool/request-mapper.js";
 
 export type {

@@ -6,7 +6,7 @@ import {
   AuthMode,
   setRootLogger,
   getLogger,
-} from "../src/index.js";
+} from "@jhzhu89/azure-client-pool";
 
 interface MultiServiceClient {
   queryResources(query: string): Promise<any>;

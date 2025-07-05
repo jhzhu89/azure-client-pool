@@ -4,12 +4,13 @@ describe("Azure Client Pool", () => {
   test("should export main modules", async () => {
     const module = await import("../src/index.js");
 
-    expect(typeof module.getAzureAuthConfig).toBe("function");
     expect(typeof module.createClientProvider).toBe("function");
     expect(typeof module.createClientProviderWithMapper).toBe("function");
     expect(typeof module.McpRequestMapper).toBe("function");
     expect(typeof module.setRootLogger).toBe("function");
     expect(typeof module.getLogger).toBe("function");
+    expect(typeof module.AuthMode).toBe("object");
+    expect(typeof module.CredentialType).toBe("object");
   });
 
   test("should have correct package structure", () => {

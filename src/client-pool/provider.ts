@@ -10,7 +10,10 @@ import {
   getClientManagerConfig,
   getJwtConfig,
 } from "../config/configuration.js";
-import { type RequestMapper } from "./request-mapper.js";
+import {
+  type RequestMapper,
+  type AuthRequestFactory,
+} from "./request-mapper.js";
 
 export interface ClientProvider<TClient, TOptions = void> {
   getClient(authRequest: AuthRequest, options?: TOptions): Promise<TClient>;
@@ -115,27 +118,27 @@ export async function createClientProviderWithMapper<
 >(
   clientFactory: ClientFactory<TClient, TOptions>,
   requestMapper: RequestMapper<TRequest, TOptions>,
-) {
+  authRequestFactory: AuthRequestFactory,
+): Promise<{
+  getClient(request: TRequest): Promise<TClient>;
+  invalidateClientCache(request: TRequest): Promise<boolean>;
+}> {
   const clientProvider = await createClientProvider(clientFactory);
 
   return {
-    getClient: async (
-      request: TRequest,
-      authMode: AuthMode = AuthMode.Application,
-    ) => {
-      const authRequest = requestMapper.mapToAuthRequest(request, authMode);
-      const options = requestMapper.mapToOptions
-        ? requestMapper.mapToOptions(request)
+    getClient: async (request: TRequest) => {
+      const authData = requestMapper.extractAuthData(request);
+      const authRequest = authRequestFactory(authData);
+      const options = requestMapper.extractOptions
+        ? requestMapper.extractOptions(request)
         : undefined;
       return await clientProvider.getClient(authRequest, options);
     },
-    invalidateClientCache: async (
-      request: TRequest,
-      authMode: AuthMode = AuthMode.Application,
-    ) => {
-      const authRequest = requestMapper.mapToAuthRequest(request, authMode);
-      const options = requestMapper.mapToOptions
-        ? requestMapper.mapToOptions(request)
+    invalidateClientCache: async (request: TRequest) => {
+      const authData = requestMapper.extractAuthData(request);
+      const authRequest = authRequestFactory(authData);
+      const options = requestMapper.extractOptions
+        ? requestMapper.extractOptions(request)
         : undefined;
       return await clientProvider.invalidateClientCache(authRequest, options);
     },
