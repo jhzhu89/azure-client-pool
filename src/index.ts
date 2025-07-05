@@ -16,6 +16,7 @@ export type {
   DelegatedAuthRequest,
   CompositeAuthRequest,
   ClientFactory,
+  CredentialProvider,
 } from "./types.js";
 
 export { AuthMode, CredentialType } from "./types.js";

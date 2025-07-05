@@ -31,7 +31,12 @@ export class ClientPool<TClient, TOptions = void> {
     authContext: AuthContext,
     options?: TOptions,
   ): Promise<TClient> {
-    const cacheKey = this.generateCacheKey(authContext, options);
+    const rawCacheKey = this.generateRawCacheKey(authContext, options);
+    const cacheKey = createStableCacheKey(rawCacheKey);
+
+    logger.debug("Getting client from cache", {
+      rawCacheKey,
+    });
 
     return this.clientCache.getOrCreate(
       cacheKey,
@@ -61,13 +66,12 @@ export class ClientPool<TClient, TOptions = void> {
     );
   }
 
-  private generateCacheKey(
+  private generateRawCacheKey(
     authContext: AuthContext,
     options?: TOptions,
   ): string {
     const parts: string[] = [
       this.config.cacheKeyPrefix,
-      "client",
       authContext.mode,
     ];
 
@@ -88,7 +92,7 @@ export class ClientPool<TClient, TOptions = void> {
       parts.push(optionsHash);
     }
 
-    return createStableCacheKey(parts.join("::"));
+    return parts.join("::");
   }
 
   async clearCache(): Promise<void> {
@@ -100,14 +104,12 @@ export class ClientPool<TClient, TOptions = void> {
     authContext: AuthContext,
     options?: TOptions,
   ): Promise<boolean> {
-    const cacheKey = this.generateCacheKey(authContext, options);
+    const rawCacheKey = this.generateRawCacheKey(authContext, options);
+    const cacheKey = createStableCacheKey(rawCacheKey);
     const removed = this.clientCache.delete(cacheKey);
 
     logger.debug("Removed specific client from cache", {
-      authMode: authContext.mode,
-      userObjectId:
-        "userObjectId" in authContext ? authContext.userObjectId : undefined,
-      tenantId: "tenantId" in authContext ? authContext.tenantId : undefined,
+      rawCacheKey,
       removed,
     });
 

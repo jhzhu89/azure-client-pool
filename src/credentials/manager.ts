@@ -78,7 +78,12 @@ export class CredentialManager {
   }
 
   async getApplicationCredential(): Promise<TokenCredential> {
-    const cacheKey = this.createApplicationCacheKey();
+    const rawCacheKey = this.createApplicationRawCacheKey();
+    const cacheKey = createStableCacheKey(rawCacheKey);
+
+    logger.debug("Getting application credential from cache", {
+      rawCacheKey,
+    });
 
     return this.applicationCredentialCache.getOrCreate(
       cacheKey,
@@ -92,7 +97,12 @@ export class CredentialManager {
   ): Promise<TokenCredential> {
     const tokenContext = this.validateAndGetTokenContext(authContext);
 
-    const cacheKey = this.createDelegatedCacheKey(tokenContext);
+    const rawCacheKey = this.createDelegatedRawCacheKey(tokenContext);
+    const cacheKey = createStableCacheKey(rawCacheKey);
+
+    logger.debug("Getting delegated credential from cache", {
+      rawCacheKey,
+    });
 
     return this.delegatedCredentialCache.getOrCreate(
       cacheKey,
@@ -117,19 +127,21 @@ export class CredentialManager {
     return authContext as TokenBasedAuthContext;
   }
 
-  private createApplicationCacheKey(): string {
+  private createApplicationRawCacheKey(): string {
     const parts = [this.config.cacheKeyPrefix, CredentialType.Application];
-    return createStableCacheKey(parts.join("::"));
+    return parts.join("::");
   }
 
-  private createDelegatedCacheKey(authContext: TokenBasedAuthContext): string {
+  private createDelegatedRawCacheKey(
+    authContext: TokenBasedAuthContext,
+  ): string {
     const parts = [
       this.config.cacheKeyPrefix,
       CredentialType.Delegated,
       authContext.tenantId,
       authContext.userObjectId,
     ];
-    return createStableCacheKey(parts.join("::"));
+    return parts.join("::");
   }
 
   clearCache(): void {

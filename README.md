@@ -67,7 +67,7 @@ const clientFactory: ClientFactory<YourClient, YourOptions> = {
 
 // Create provider and get authenticated client
 const provider = await createClientProvider(clientFactory);
-const client = await provider.getAuthenticatedClient({ mode: 'application' });
+const client = await provider.getClient({ mode: 'application' });
 ```
 
 ### Delegated Authentication
@@ -80,7 +80,7 @@ const authRequest: DelegatedAuthRequest = {
   accessToken: 'user-access-token-from-oauth-flow'
 };
 
-const client = await provider.getAuthenticatedClient(authRequest);
+const client = await provider.getClient(authRequest);
 ```
 
 ### Custom Request Mapping
@@ -88,7 +88,7 @@ const client = await provider.getAuthenticatedClient(authRequest);
 For custom request formats, use `createClientProviderWithMapper`:
 
 ```typescript
-import { createClientProviderWithMapper, type RequestMapper } from '@jhzhu89/azure-client-pool';
+import { createClientProviderWithMapper, type RequestMapper, type AuthRequestFactory } from '@jhzhu89/azure-client-pool';
 
 // Define your custom request format
 interface MyCustomRequest {
@@ -99,18 +99,22 @@ interface MyCustomRequest {
 
 // Map custom requests to auth requests and options
 const requestMapper: RequestMapper<MyCustomRequest, { endpoint: string }> = {
-  mapToAuthRequest: (request) => ({
-    mode: 'delegated',
+  extractAuthData: (request) => ({
     accessToken: request.accessToken
   }),
-  mapToOptions: (request) => ({ endpoint: request.endpoint })
+  extractOptions: (request) => ({ endpoint: request.endpoint })
 };
 
+const authRequestFactory = (authData: { accessToken?: string }) => ({
+  mode: 'delegated' as const,
+  accessToken: authData.accessToken!
+});
+
 // Create provider with mapper
-const provider = await createClientProviderWithMapper(clientFactory, requestMapper);
+const provider = await createClientProviderWithMapper(clientFactory, requestMapper, authRequestFactory);
 
 // Use with your custom request format
-const client = await provider.getAuthenticatedClient({
+const client = await provider.getClient({
   userId: 'user123',
   accessToken: 'access-token',
   endpoint: 'https://mycluster.kusto.windows.net'
