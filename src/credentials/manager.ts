@@ -97,11 +97,36 @@ export class CredentialManager {
   ): Promise<TokenCredential> {
     const tokenContext = this.validateAndGetTokenContext(authContext);
 
+    const now = Date.now();
+    const tokenRemainingTime = tokenContext.expiresAt - now;
+    const effectiveRemainingTime =
+      tokenRemainingTime - this.config.credentialCache.bufferMs;
+
+    if (effectiveRemainingTime <= 0) {
+      logger.warn(
+        "Token is expiring soon, creating credential without caching",
+        {
+          tenantId: tokenContext.tenantId,
+          userObjectId: tokenContext.userObjectId,
+          tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
+          remainingSeconds: Math.floor(tokenRemainingTime / 1000),
+        },
+      );
+
+      return this.credentialFactory.createDelegatedCredential(tokenContext);
+    }
+
+    const dynamicTtl = Math.min(
+      this.config.credentialCache.slidingTtl,
+      effectiveRemainingTime,
+    );
+
     const rawCacheKey = this.createDelegatedRawCacheKey(tokenContext);
     const cacheKey = createStableCacheKey(rawCacheKey);
 
     logger.debug("Getting delegated credential from cache", {
       rawCacheKey,
+      dynamicTtl,
     });
 
     return this.delegatedCredentialCache.getOrCreate(
@@ -112,7 +137,9 @@ export class CredentialManager {
         authType: CredentialType.Delegated,
         userObjectId: tokenContext.userObjectId,
         tenantId: tokenContext.tenantId,
+        tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
       },
+      dynamicTtl,
     );
   }
 

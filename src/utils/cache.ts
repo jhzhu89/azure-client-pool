@@ -127,11 +127,12 @@ export class CacheManager<T> {
     cacheKey: string,
     factory: () => Promise<T>,
     contextInfo?: Record<string, unknown>,
+    customTtl?: number,
   ): Promise<T> {
     const cached = this.cache.get(cacheKey);
     if (cached) {
       if (cached.absoluteExpiresAt && cached.absoluteExpiresAt <= Date.now()) {
-        return this.createInternal(cacheKey, factory, contextInfo);
+        return this.createInternal(cacheKey, factory, contextInfo, customTtl);
       }
       logger.debug(`${this.cacheType} cache hit`, {
         cacheKey: this.createLoggableKey(cacheKey),
@@ -154,7 +155,12 @@ export class CacheManager<T> {
       ...contextInfo,
     });
 
-    const promise = this.createInternal(cacheKey, factory, contextInfo);
+    const promise = this.createInternal(
+      cacheKey,
+      factory,
+      contextInfo,
+      customTtl,
+    );
     this.pendingRequests.set(cacheKey, promise);
 
     try {
@@ -168,20 +174,17 @@ export class CacheManager<T> {
     cacheKey: string,
     factory: () => Promise<T>,
     contextInfo?: Record<string, unknown>,
+    customTtl?: number,
   ): Promise<T> {
     const value = await factory();
     const entry = this.createCacheEntry(value);
-    this.cache.set(cacheKey, entry);
 
-    const absoluteExpiresAt = entry.absoluteExpiresAt
-      ? new Date(entry.absoluteExpiresAt).toISOString()
-      : "never";
+    const ttl = customTtl ?? this.slidingTtl;
+    this.cache.set(cacheKey, entry, { ttl });
 
     logger.debug(`${this.cacheType} entry created and cached`, {
       cacheKey: this.createLoggableKey(cacheKey),
-      slidingTTL: this.slidingTtl,
-      absoluteExpiresAt,
-      cacheSize: this.cache.size,
+      slidingTTL: ttl,
       ...contextInfo,
     });
 

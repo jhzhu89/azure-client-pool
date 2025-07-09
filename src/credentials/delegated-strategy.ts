@@ -29,6 +29,22 @@ export class DelegatedCredentialStrategy {
   }
 
   createOBOCredential(context: TokenBasedAuthContext): OnBehalfOfCredential {
+    const now = Date.now();
+
+    if (context.expiresAt <= now) {
+      const expiredAt = new Date(context.expiresAt).toISOString();
+
+      logger.error("User assertion token has expired", {
+        tenantId: context.tenantId,
+        userObjectId: context.userObjectId,
+        expiredAt,
+      });
+
+      throw new Error(
+        `User assertion token expired at ${expiredAt}. Please refresh the token and try again.`,
+      );
+    }
+
     logger.debug("Creating OBO credential", {
       tenantId: context.tenantId,
       clientId: this.config.clientId,

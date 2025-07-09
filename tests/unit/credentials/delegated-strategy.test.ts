@@ -249,4 +249,62 @@ describe("DelegatedCredentialStrategy", () => {
       expect(options.userAssertionToken).toBe("custom-access-token");
     });
   });
+
+  describe("Token Expiry Validation", () => {
+    it("should reject expired token", () => {
+      const config: DelegatedAuthConfig = {
+        clientId: "test-client-id",
+        tenantId: "test-tenant-id",
+        clientSecret: "test-client-secret",
+      };
+
+      const expiredContext: TokenBasedAuthContext = {
+        ...authContext,
+        expiresAt: Date.now() - 1000,
+      };
+
+      const strategy = new DelegatedCredentialStrategy(config);
+
+      expect(() => strategy.createOBOCredential(expiredContext)).toThrow(
+        /User assertion token expired/,
+      );
+    });
+
+    it("should reject token that expires at current time", () => {
+      const config: DelegatedAuthConfig = {
+        clientId: "test-client-id",
+        tenantId: "test-tenant-id",
+        clientSecret: "test-client-secret",
+      };
+
+      const now = Date.now();
+      const expiredContext: TokenBasedAuthContext = {
+        ...authContext,
+        expiresAt: now,
+      };
+
+      const strategy = new DelegatedCredentialStrategy(config);
+
+      expect(() => strategy.createOBOCredential(expiredContext)).toThrow(
+        /User assertion token expired/,
+      );
+    });
+
+    it("should accept valid token", () => {
+      const config: DelegatedAuthConfig = {
+        clientId: "test-client-id",
+        tenantId: "test-tenant-id",
+        clientSecret: "test-client-secret",
+      };
+
+      const validContext: TokenBasedAuthContext = {
+        ...authContext,
+        expiresAt: Date.now() + 60000,
+      };
+
+      const strategy = new DelegatedCredentialStrategy(config);
+
+      expect(() => strategy.createOBOCredential(validContext)).not.toThrow();
+    });
+  });
 });

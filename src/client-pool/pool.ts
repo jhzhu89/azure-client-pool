@@ -70,10 +70,7 @@ export class ClientPool<TClient, TOptions = void> {
     authContext: AuthContext,
     options?: TOptions,
   ): string {
-    const parts: string[] = [
-      this.config.cacheKeyPrefix,
-      authContext.mode,
-    ];
+    const parts: string[] = [this.config.cacheKeyPrefix, authContext.mode];
 
     if (authContext.mode !== AuthMode.Application) {
       const tokenContext = authContext as TokenBasedAuthContext;

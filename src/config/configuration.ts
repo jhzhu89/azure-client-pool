@@ -22,6 +22,7 @@ export interface CredentialCacheConfig {
   slidingTtl: number;
   maxSize: number;
   absoluteTtl: number;
+  bufferMs: number;
 }
 
 export interface ClientManagerConfig {
@@ -67,6 +68,7 @@ interface RawEnvironmentConfig {
     credentialCacheSlidingTtl?: number;
     credentialCacheMaxSize?: number;
     credentialCacheAbsoluteTtl?: number;
+    credentialCacheBufferMs?: number;
   };
 }
 
@@ -128,6 +130,11 @@ function loadRawEnvironmentConfig(): RawEnvironmentConfig {
       ...(process.env.CACHE_CREDENTIAL_ABSOLUTE_TTL && {
         credentialCacheAbsoluteTtl: parseInt(
           process.env.CACHE_CREDENTIAL_ABSOLUTE_TTL,
+        ),
+      }),
+      ...(process.env.CACHE_CREDENTIAL_BUFFER_MS && {
+        credentialCacheBufferMs: parseInt(
+          process.env.CACHE_CREDENTIAL_BUFFER_MS,
         ),
       }),
     },
@@ -234,6 +241,7 @@ function createClientManagerConfig(
       slidingTtl: raw.cache.credentialCacheSlidingTtl ?? 2 * 60 * 60 * 1000,
       maxSize: raw.cache.credentialCacheMaxSize ?? 200,
       absoluteTtl: raw.cache.credentialCacheAbsoluteTtl ?? 8 * 60 * 60 * 1000,
+      bufferMs: raw.cache.credentialCacheBufferMs ?? 30 * 1000,
     },
   };
 }
