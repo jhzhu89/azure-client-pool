@@ -23,16 +23,10 @@ interface CacheStats {
     maxSize: number;
     pendingRequests: number;
   };
-  delegatedCredentials: {
-    size: number;
-    maxSize: number;
-    pendingRequests: number;
-  };
 }
 
 export class CredentialManager {
   private readonly applicationCredentialCache: CredentialCache;
-  private readonly delegatedCredentialCache: CredentialCache;
   private readonly credentialFactory: CredentialFactory;
 
   constructor(
@@ -46,9 +40,6 @@ export class CredentialManager {
     );
     this.applicationCredentialCache = this.createCredentialCache(
       "application-credential",
-    );
-    this.delegatedCredentialCache = this.createCredentialCache(
-      "delegated-credential",
     );
   }
 
@@ -98,49 +89,27 @@ export class CredentialManager {
     const tokenContext = this.validateAndGetTokenContext(authContext);
 
     const now = Date.now();
-    const tokenRemainingTime = tokenContext.expiresAt - now;
-    const effectiveRemainingTime =
-      tokenRemainingTime - this.config.credentialCache.bufferMs;
+    if (tokenContext.expiresAt <= now) {
+      const expiredAt = new Date(tokenContext.expiresAt).toISOString();
 
-    if (effectiveRemainingTime <= 0) {
-      logger.warn(
-        "Token is expiring soon, creating credential without caching",
-        {
-          tenantId: tokenContext.tenantId,
-          userObjectId: tokenContext.userObjectId,
-          tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
-          remainingSeconds: Math.floor(tokenRemainingTime / 1000),
-        },
+      logger.error("User assertion token has expired", {
+        tenantId: tokenContext.tenantId,
+        userObjectId: tokenContext.userObjectId,
+        expiredAt,
+      });
+
+      throw new Error(
+        `User assertion token expired at ${expiredAt}. Please refresh the token and try again.`,
       );
-
-      return this.credentialFactory.createDelegatedCredential(tokenContext);
     }
 
-    const dynamicTtl = Math.min(
-      this.config.credentialCache.slidingTtl,
-      effectiveRemainingTime,
-    );
-
-    const rawCacheKey = this.createDelegatedRawCacheKey(tokenContext);
-    const cacheKey = createStableCacheKey(rawCacheKey);
-
-    logger.debug("Getting delegated credential from cache", {
-      rawCacheKey,
-      dynamicTtl,
+    logger.debug("Creating delegated credential without caching", {
+      tenantId: tokenContext.tenantId,
+      userObjectId: tokenContext.userObjectId,
+      tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
     });
 
-    return this.delegatedCredentialCache.getOrCreate(
-      cacheKey,
-      async () =>
-        this.credentialFactory.createDelegatedCredential(tokenContext),
-      {
-        authType: CredentialType.Delegated,
-        userObjectId: tokenContext.userObjectId,
-        tenantId: tokenContext.tenantId,
-        tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
-      },
-      dynamicTtl,
-    );
+    return this.credentialFactory.createDelegatedCredential(tokenContext);
   }
 
   private validateAndGetTokenContext(
@@ -159,28 +128,14 @@ export class CredentialManager {
     return parts.join("::");
   }
 
-  private createDelegatedRawCacheKey(
-    authContext: TokenBasedAuthContext,
-  ): string {
-    const parts = [
-      this.config.cacheKeyPrefix,
-      CredentialType.Delegated,
-      authContext.tenantId,
-      authContext.userObjectId,
-    ];
-    return parts.join("::");
-  }
-
   clearCache(): void {
     this.applicationCredentialCache.clear();
-    this.delegatedCredentialCache.clear();
-    logger.debug("All credential caches cleared");
+    logger.debug("Application credential cache cleared");
   }
 
   getCacheStats(): CacheStats {
     return {
       applicationCredentials: this.applicationCredentialCache.getStats(),
-      delegatedCredentials: this.delegatedCredentialCache.getStats(),
     };
   }
 }

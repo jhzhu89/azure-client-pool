@@ -16,13 +16,13 @@ export interface JwtConfig {
 export interface ClientCacheConfig {
   slidingTtl: number;
   maxSize: number;
+  bufferMs: number;
 }
 
 export interface CredentialCacheConfig {
   slidingTtl: number;
   maxSize: number;
   absoluteTtl: number;
-  bufferMs: number;
 }
 
 export interface ClientManagerConfig {
@@ -65,10 +65,10 @@ interface RawEnvironmentConfig {
     keyPrefix: string;
     clientCacheSlidingTtl?: number;
     clientCacheMaxSize?: number;
+    clientCacheBufferMs?: number;
     credentialCacheSlidingTtl?: number;
     credentialCacheMaxSize?: number;
     credentialCacheAbsoluteTtl?: number;
-    credentialCacheBufferMs?: number;
   };
 }
 
@@ -119,6 +119,9 @@ function loadRawEnvironmentConfig(): RawEnvironmentConfig {
       ...(process.env.CACHE_CLIENT_MAX_SIZE && {
         clientCacheMaxSize: parseInt(process.env.CACHE_CLIENT_MAX_SIZE),
       }),
+      ...(process.env.CACHE_CLIENT_BUFFER_MS && {
+        clientCacheBufferMs: parseInt(process.env.CACHE_CLIENT_BUFFER_MS),
+      }),
       ...(process.env.CACHE_CREDENTIAL_SLIDING_TTL && {
         credentialCacheSlidingTtl: parseInt(
           process.env.CACHE_CREDENTIAL_SLIDING_TTL,
@@ -130,11 +133,6 @@ function loadRawEnvironmentConfig(): RawEnvironmentConfig {
       ...(process.env.CACHE_CREDENTIAL_ABSOLUTE_TTL && {
         credentialCacheAbsoluteTtl: parseInt(
           process.env.CACHE_CREDENTIAL_ABSOLUTE_TTL,
-        ),
-      }),
-      ...(process.env.CACHE_CREDENTIAL_BUFFER_MS && {
-        credentialCacheBufferMs: parseInt(
-          process.env.CACHE_CREDENTIAL_BUFFER_MS,
         ),
       }),
     },
@@ -236,12 +234,12 @@ function createClientManagerConfig(
     clientCache: {
       slidingTtl: raw.cache.clientCacheSlidingTtl ?? 45 * 60 * 1000,
       maxSize: raw.cache.clientCacheMaxSize ?? 100,
+      bufferMs: raw.cache.clientCacheBufferMs ?? 60 * 1000,
     },
     credentialCache: {
       slidingTtl: raw.cache.credentialCacheSlidingTtl ?? 2 * 60 * 60 * 1000,
       maxSize: raw.cache.credentialCacheMaxSize ?? 200,
       absoluteTtl: raw.cache.credentialCacheAbsoluteTtl ?? 8 * 60 * 60 * 1000,
-      bufferMs: raw.cache.credentialCacheBufferMs ?? 30 * 1000,
     },
   };
 }

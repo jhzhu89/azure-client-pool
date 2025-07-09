@@ -38,6 +38,24 @@ export class ClientPool<TClient, TOptions = void> {
       rawCacheKey,
     });
 
+    // Calculate dynamic TTL for token-based authentication
+    let customTtl: number | undefined;
+    if (authContext.mode !== AuthMode.Application) {
+      const tokenContext = authContext as TokenBasedAuthContext;
+      const now = Date.now();
+      const tokenRemainingTime = tokenContext.expiresAt - now;
+      const bufferMs = this.config.clientCache.bufferMs;
+
+      customTtl = Math.max(tokenRemainingTime - bufferMs, 0);
+
+      logger.debug("Using dynamic TTL for token-based auth", {
+        tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
+        tokenRemainingTime: Math.floor(tokenRemainingTime / 1000),
+        bufferMs: Math.floor(bufferMs / 1000),
+        customTtl: Math.floor(customTtl / 1000),
+      });
+    }
+
     return this.clientCache.getOrCreate(
       cacheKey,
       async () => {
@@ -63,6 +81,7 @@ export class ClientPool<TClient, TOptions = void> {
           "userObjectId" in authContext ? authContext.userObjectId : undefined,
         tenantId: "tenantId" in authContext ? authContext.tenantId : undefined,
       },
+      customTtl,
     );
   }
 

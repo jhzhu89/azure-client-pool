@@ -49,12 +49,12 @@ describe("CredentialManager", () => {
       clientCache: {
         slidingTtl: 45 * 60 * 1000,
         maxSize: 100,
+        bufferMs: 30 * 1000,
       },
       credentialCache: {
         slidingTtl: 30 * 60 * 1000,
         maxSize: 200,
         absoluteTtl: 8 * 60 * 60 * 1000,
-        bufferMs: 30 * 1000,
       },
     };
 
@@ -74,120 +74,53 @@ describe("CredentialManager", () => {
   });
 
   describe("getDelegatedCredential", () => {
-    it("should use shorter TTL when token expires soon", async () => {
-      const fixedNow = 1000000000000; // Fixed timestamp
-      const dateNowSpy = spyOn(Date, "now").mockReturnValue(fixedNow);
-
-      const shortLivedContext: TokenBasedAuthContext = {
-        ...authContext,
-        expiresAt: fixedNow + 60 * 1000,
-      };
-
-      const mockCache = spyOn(
-        manager["delegatedCredentialCache"],
-        "getOrCreate",
-      );
-      mockCache.mockResolvedValue(MockTokenCredential() as any);
-
-      await manager.getDelegatedCredential(shortLivedContext);
-
-      expect(mockCache).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Function),
-        expect.objectContaining({
-          authType: CredentialType.Delegated,
-          userObjectId: "test-user-id",
-          tenantId: "test-tenant-id",
-        }),
-        30000,
-      );
-
-      dateNowSpy.mockRestore();
-    });
-
-    it("should use default TTL when token has long lifetime", async () => {
-      const fixedNow = 1000000000000; // Fixed timestamp
-      const dateNowSpy = spyOn(Date, "now").mockReturnValue(fixedNow);
-
-      const longLivedContext: TokenBasedAuthContext = {
-        ...authContext,
-        expiresAt: fixedNow + 2 * 60 * 60 * 1000,
-      };
-
-      const mockCache = spyOn(
-        manager["delegatedCredentialCache"],
-        "getOrCreate",
-      );
-      mockCache.mockResolvedValue(MockTokenCredential() as any);
-
-      await manager.getDelegatedCredential(longLivedContext);
-
-      expect(mockCache).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Function),
-        expect.objectContaining({
-          authType: CredentialType.Delegated,
-          userObjectId: "test-user-id",
-          tenantId: "test-tenant-id",
-        }),
-        30 * 60 * 1000,
-      );
-
-      dateNowSpy.mockRestore();
-    });
-
-    it("should not cache credential when token expires within buffer time", async () => {
-      const fixedNow = 1000000000000; // Fixed timestamp
-      const dateNowSpy = spyOn(Date, "now").mockReturnValue(fixedNow);
-
-      const soonExpiredContext: TokenBasedAuthContext = {
-        ...authContext,
-        expiresAt: fixedNow + 20 * 1000,
-      };
-
+    it("should always create a new delegated credential", async () => {
       const mockFactory = spyOn(
         manager["credentialFactory"],
         "createDelegatedCredential",
       );
-      const mockCache = spyOn(
-        manager["delegatedCredentialCache"],
-        "getOrCreate",
-      );
-      mockFactory.mockReturnValue(MockTokenCredential() as any);
+      const mockCredential = MockTokenCredential() as any;
+      mockFactory.mockReturnValue(mockCredential);
 
-      await manager.getDelegatedCredential(soonExpiredContext);
+      const result = await manager.getDelegatedCredential(authContext);
 
-      expect(mockFactory).toHaveBeenCalledWith(soonExpiredContext);
-      expect(mockCache).not.toHaveBeenCalled();
-
-      dateNowSpy.mockRestore();
+      expect(mockFactory).toHaveBeenCalledWith(authContext);
+      expect(result).toBe(mockCredential);
     });
 
-    it("should not cache credential when token expires exactly at buffer time", async () => {
-      const fixedNow = 1000000000000; // Fixed timestamp
-      const dateNowSpy = spyOn(Date, "now").mockReturnValue(fixedNow);
-
-      const bufferExpiredContext: TokenBasedAuthContext = {
-        ...authContext,
-        expiresAt: fixedNow + 30 * 1000,
-      };
-
+    it("should create new credential instances for each call", async () => {
       const mockFactory = spyOn(
         manager["credentialFactory"],
         "createDelegatedCredential",
       );
-      const mockCache = spyOn(
-        manager["delegatedCredentialCache"],
-        "getOrCreate",
+      const mockCredential = MockTokenCredential() as any;
+      mockFactory.mockReturnValue(mockCredential);
+
+      const result1 = await manager.getDelegatedCredential(authContext);
+      const result2 = await manager.getDelegatedCredential(authContext);
+
+      expect(mockFactory).toHaveBeenCalledTimes(2);
+      expect(result1).toBe(mockCredential);
+      expect(result2).toBe(mockCredential);
+    });
+
+    it("should pass different auth contexts to credential factory", async () => {
+      const mockFactory = spyOn(
+        manager["credentialFactory"],
+        "createDelegatedCredential",
       );
-      mockFactory.mockReturnValue(MockTokenCredential() as any);
+      const mockCredential = MockTokenCredential() as any;
+      mockFactory.mockReturnValue(mockCredential);
 
-      await manager.getDelegatedCredential(bufferExpiredContext);
+      const context1 = { ...authContext, userObjectId: "user-1" };
+      const context2 = { ...authContext, userObjectId: "user-2" };
 
-      expect(mockFactory).toHaveBeenCalledWith(bufferExpiredContext);
-      expect(mockCache).not.toHaveBeenCalled();
+      await manager.getDelegatedCredential(context1);
+      await manager.getDelegatedCredential(context2);
 
-      dateNowSpy.mockRestore();
+      expect(mockFactory).toHaveBeenCalledWith(context1);
+      expect(mockFactory).toHaveBeenCalledWith(context2);
+      expect(mockFactory).toHaveBeenCalledTimes(2);
     });
   });
 });
