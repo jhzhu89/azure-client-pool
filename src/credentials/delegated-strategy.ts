@@ -6,25 +6,58 @@ import {
 import { type DelegatedAuthConfig } from "../config/configuration.js";
 import { type TokenBasedAuthContext } from "../auth/context.js";
 import { getLogger } from "../utils/logging.js";
+import * as fs from "fs";
+import * as crypto from "crypto";
 
 const logger = getLogger("delegated-strategy");
 
 export class DelegatedCredentialStrategy {
-  private readonly usesCertificate: boolean;
+  private readonly effectiveCertPath: string | undefined;
 
   constructor(private readonly config: DelegatedAuthConfig) {
-    this.usesCertificate = !!config.certificatePath;
-
-    if (!this.usesCertificate && !config.clientSecret) {
-      throw new Error(
-        "Azure authentication requires either client certificate path or client secret",
+    if (config.certificatePem) {
+      this.effectiveCertPath = this.createCertificateFile(
+        config.certificatePem,
       );
+    } else {
+      this.effectiveCertPath = config.certificatePath;
+    }
+  }
+
+  private createCertificateFile(certificatePem: string): string {
+    const hash = crypto
+      .createHash("sha256")
+      .update(certificatePem)
+      .digest("hex")
+      .substring(0, 16);
+
+    const certPath = `/dev/shm/azure-cert-${hash}-${process.pid}.pem`;
+
+    if (this.isValidCertificateFile(certPath, certificatePem)) {
+      return certPath;
     }
 
-    if (this.usesCertificate && config.clientSecret) {
-      throw new Error(
-        "Only one of certificatePath or clientSecret should be provided",
-      );
+    const tempPath = `${certPath}.tmp.${Date.now()}.${Math.random().toString(36)}`;
+
+    fs.writeFileSync(tempPath, certificatePem, { mode: 0o600 });
+    fs.renameSync(tempPath, certPath);
+
+    return certPath;
+  }
+
+  private isValidCertificateFile(
+    certPath: string,
+    certificatePem: string,
+  ): boolean {
+    if (!fs.existsSync(certPath)) {
+      return false;
+    }
+
+    try {
+      const existingContent = fs.readFileSync(certPath, "utf8");
+      return existingContent === certificatePem;
+    } catch {
+      return false;
     }
   }
 
@@ -45,19 +78,13 @@ export class DelegatedCredentialStrategy {
       );
     }
 
-    logger.debug("Creating OBO credential", {
-      tenantId: context.tenantId,
-      clientId: this.config.clientId,
-      usesCertificate: this.usesCertificate,
-    });
-
     const baseOptions = {
       tenantId: context.tenantId,
       clientId: this.config.clientId,
       userAssertionToken: context.accessToken,
     };
 
-    if (this.usesCertificate) {
+    if (this.effectiveCertPath) {
       logger.debug("Using certificate-based OBO credential");
       return new OnBehalfOfCredential(
         this.createCertificateOptions(baseOptions),
@@ -73,20 +100,16 @@ export class DelegatedCredentialStrategy {
     clientId: string;
     userAssertionToken: string;
   }): OnBehalfOfCredentialCertificateOptions {
-    if (!this.config.certificatePath) {
-      logger.error(
-        "Certificate path is missing for certificate-based authentication",
-      );
+    if (!this.effectiveCertPath) {
       throw new Error(
-        "Certificate path is required for certificate-based authentication",
+        "Certificate is required for certificate-based authentication",
       );
     }
-    logger.debug("Building certificate options", {
-      certificatePath: this.config.certificatePath,
-    });
+
     return {
       ...baseOptions,
-      certificatePath: this.config.certificatePath,
+      certificatePath: this.effectiveCertPath,
+      sendCertificateChain: true,
     };
   }
 

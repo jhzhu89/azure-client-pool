@@ -1,6 +1,6 @@
 {
   "name": "@jhzhu89/azure-client-pool",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Azure client lifecycle management with intelligent caching and authentication",
   "keywords": [
     "azure",
@@ -67,11 +67,13 @@
     "@azure/identity": "^4.10.0"
   },
   "dependencies": {
+    "@azure/app-configuration-provider": "^2.1.0",
     "@isaacs/ttlcache": "^1.4.1",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.2.0",
     "pino": "^9.7.0",
-    "pino-pretty": "^13.0.0"
+    "pino-pretty": "^13.0.0",
+    "zod": "^4.0.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",

@@ -9,16 +9,25 @@ import { DelegatedCredentialStrategy } from "./delegated-strategy.js";
 
 export class CredentialFactory {
   private readonly applicationStrategy: ApplicationCredentialStrategy;
-  private readonly delegatedStrategy: DelegatedCredentialStrategy;
+  private readonly delegatedStrategy: DelegatedCredentialStrategy | null;
 
-  constructor(
+  private constructor(
     applicationConfig: ApplicationAuthConfig,
-    delegatedConfig: DelegatedAuthConfig,
+    delegatedConfig?: DelegatedAuthConfig,
   ) {
     this.applicationStrategy = new ApplicationCredentialStrategy(
       applicationConfig,
     );
-    this.delegatedStrategy = new DelegatedCredentialStrategy(delegatedConfig);
+    this.delegatedStrategy = delegatedConfig
+      ? new DelegatedCredentialStrategy(delegatedConfig)
+      : null;
+  }
+
+  static async create(
+    applicationConfig: ApplicationAuthConfig,
+    delegatedConfig?: DelegatedAuthConfig,
+  ): Promise<CredentialFactory> {
+    return new CredentialFactory(applicationConfig, delegatedConfig);
   }
 
   createApplicationCredential(): TokenCredential {
@@ -26,6 +35,12 @@ export class CredentialFactory {
   }
 
   createDelegatedCredential(context: TokenBasedAuthContext): TokenCredential {
+    if (!this.delegatedStrategy) {
+      throw new Error(
+        "Delegated authentication not configured. Please provide delegated auth configuration with: " +
+          "clientId, tenantId, and either clientSecret OR certificate configuration (certificatePath/certificatePem).",
+      );
+    }
     return this.delegatedStrategy.createOBOCredential(context);
   }
 }

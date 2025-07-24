@@ -4,12 +4,8 @@ import { CredentialManager } from "../credentials/manager.js";
 import { type AuthRequest } from "../types.js";
 import { type AuthContext, AuthContextFactory } from "../auth/context.js";
 import { JwtHandler } from "../auth/jwt/validator.js";
-import {
-  getApplicationAuthConfig,
-  getDelegatedAuthConfig,
-  getClientManagerConfig,
-  getJwtConfig,
-} from "../config/configuration.js";
+import { ConfigurationManager } from "../config/manager.js";
+import { ConfigurationSource } from "../config/source.js";
 import {
   type RequestMapper,
   type AuthRequestFactory,
@@ -89,15 +85,19 @@ class ClientProviderImpl<TClient, TOptions = void>
 
 export async function createClientProvider<TClient, TOptions = void>(
   clientFactory: ClientFactory<TClient, TOptions>,
+  options?: { configSource?: ConfigurationSource },
 ): Promise<ClientProvider<TClient, TOptions>> {
-  const applicationConfig = getApplicationAuthConfig();
-  const delegatedConfig = getDelegatedAuthConfig();
-  const clientManagerConfig = getClientManagerConfig();
+  const configManager = new ConfigurationManager(options?.configSource);
 
-  const credentialManager = new CredentialManager(
+  const applicationConfig = await configManager.getApplicationAuthConfig();
+  const delegatedConfig = await configManager.getDelegatedAuthConfig();
+  const clientManagerConfig = await configManager.getClientManagerConfig();
+  const jwtConfig = await configManager.getJwtConfig();
+
+  const credentialManager = await CredentialManager.create(
     applicationConfig,
-    delegatedConfig,
     clientManagerConfig,
+    delegatedConfig,
   );
   const clientPool = new ClientPool(
     clientFactory,
@@ -105,8 +105,7 @@ export async function createClientProvider<TClient, TOptions = void>(
     clientManagerConfig,
   );
 
-  const jwtConfig = getJwtConfig();
-  const jwtHandler = new JwtHandler(jwtConfig);
+  const jwtHandler = jwtConfig ? new JwtHandler(jwtConfig) : undefined;
 
   return new ClientProviderImpl(clientPool, jwtHandler);
 }
@@ -119,11 +118,12 @@ export async function createClientProviderWithMapper<
   clientFactory: ClientFactory<TClient, TOptions>,
   requestMapper: RequestMapper<TRequest, TOptions>,
   authRequestFactory: AuthRequestFactory,
+  options?: { configSource?: ConfigurationSource },
 ): Promise<{
   getClient(request: TRequest): Promise<TClient>;
   invalidateClientCache(request: TRequest): Promise<boolean>;
 }> {
-  const clientProvider = await createClientProvider(clientFactory);
+  const clientProvider = await createClientProvider(clientFactory, options);
 
   return {
     getClient: async (request: TRequest) => {

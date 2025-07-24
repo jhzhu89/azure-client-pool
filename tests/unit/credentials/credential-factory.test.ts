@@ -37,7 +37,7 @@ describe("CredentialFactory", () => {
   let delegatedConfig: DelegatedAuthConfig;
   let credentialFactory: CredentialFactory;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     applicationConfig = {
       strategy: ApplicationAuthStrategy.Chain,
       managedIdentityClientId: "test-managed-identity-client",
@@ -49,7 +49,7 @@ describe("CredentialFactory", () => {
       clientSecret: "test-client-secret",
     };
 
-    credentialFactory = new CredentialFactory(
+    credentialFactory = await CredentialFactory.create(
       applicationConfig,
       delegatedConfig,
     );
@@ -62,12 +62,15 @@ describe("CredentialFactory", () => {
       expect(credentialFactory.createDelegatedCredential).toBeFunction();
     });
 
-    it("should handle application config without managed identity client ID", () => {
+    it("should handle application config without managed identity client ID", async () => {
       const configWithoutMI: ApplicationAuthConfig = {
         strategy: ApplicationAuthStrategy.Cli,
       };
 
-      const factory = new CredentialFactory(configWithoutMI, delegatedConfig);
+      const factory = await CredentialFactory.create(
+        configWithoutMI,
+        delegatedConfig,
+      );
 
       expect(factory).toBeDefined();
     });
@@ -81,25 +84,28 @@ describe("CredentialFactory", () => {
       expect((credential as any).mockType).toBe("ChainedTokenCredential");
     });
 
-    it("should create CLI credential when strategy is CLI", () => {
+    it("should create CLI credential when strategy is CLI", async () => {
       const cliConfig: ApplicationAuthConfig = {
         strategy: ApplicationAuthStrategy.Cli,
       };
 
-      const factory = new CredentialFactory(cliConfig, delegatedConfig);
+      const factory = await CredentialFactory.create(
+        cliConfig,
+        delegatedConfig,
+      );
       const credential = factory.createApplicationCredential();
 
       expect(credential).toBeDefined();
       expect((credential as any).mockType).toBe("AzureCliCredential");
     });
 
-    it("should create managed identity credential when strategy is ManagedIdentity", () => {
+    it("should create managed identity credential when strategy is ManagedIdentity", async () => {
       const miConfig: ApplicationAuthConfig = {
         strategy: ApplicationAuthStrategy.ManagedIdentity,
         managedIdentityClientId: "mi-client-id",
       };
 
-      const factory = new CredentialFactory(miConfig, delegatedConfig);
+      const factory = await CredentialFactory.create(miConfig, delegatedConfig);
       const credential = factory.createApplicationCredential();
 
       expect(credential).toBeDefined();
@@ -107,12 +113,12 @@ describe("CredentialFactory", () => {
       expect((credential as any).options).toEqual({ clientId: "mi-client-id" });
     });
 
-    it("should create managed identity credential without client ID when not provided", () => {
+    it("should create managed identity credential without client ID when not provided", async () => {
       const miConfig: ApplicationAuthConfig = {
         strategy: ApplicationAuthStrategy.ManagedIdentity,
       };
 
-      const factory = new CredentialFactory(miConfig, delegatedConfig);
+      const factory = await CredentialFactory.create(miConfig, delegatedConfig);
       const credential = factory.createApplicationCredential();
 
       expect(credential).toBeDefined();
@@ -148,15 +154,17 @@ describe("CredentialFactory", () => {
       expect(options.userAssertionToken).toBe("test-access-token");
     });
 
-    it("should create delegated credential with certificate", () => {
+    it("should create delegated credential with certificate", async () => {
       const certConfig: DelegatedAuthConfig = {
         clientId: "test-client-id",
         tenantId: "test-tenant-id",
         certificatePath: "/path/to/cert.pem",
-        certificatePassword: "cert-password",
       };
 
-      const factory = new CredentialFactory(applicationConfig, certConfig);
+      const factory = await CredentialFactory.create(
+        applicationConfig,
+        certConfig,
+      );
       const credential = factory.createDelegatedCredential(authContext);
 
       expect(credential).toBeDefined();
@@ -185,40 +193,62 @@ describe("CredentialFactory", () => {
   });
 
   describe("Error Handling", () => {
-    it("should throw error for delegated config with both secret and certificate", () => {
-      const invalidConfig: DelegatedAuthConfig = {
-        clientId: "test-client-id",
+    it("should throw error when delegated config is not provided", async () => {
+      // Factory creation should not throw when no delegated config is provided
+      const factory = await CredentialFactory.create(applicationConfig);
+      expect(factory).toBeDefined();
+
+      // But creating delegated credential should throw
+      const authContext: TokenBasedAuthContext = {
+        mode: AuthMode.Delegated,
+        userObjectId: "test-user-id",
         tenantId: "test-tenant-id",
-        clientSecret: "test-secret",
-        certificatePath: "/path/to/cert.pem",
+        accessToken: "test-access-token",
+        expiresAt: Date.now() + 3600000,
       };
 
-      expect(
-        () => new CredentialFactory(applicationConfig, invalidConfig),
-      ).toThrow(
-        "Only one of certificatePath or clientSecret should be provided",
+      expect(() => factory.createDelegatedCredential(authContext)).toThrow(
+        "Delegated authentication not configured. Please provide delegated auth configuration with: clientId, tenantId, and either clientSecret OR certificate configuration (certificatePath/certificatePem).",
       );
     });
 
-    it("should throw error for delegated config with neither secret nor certificate", () => {
-      const invalidConfig: DelegatedAuthConfig = {
+    it("should throw error when creating delegated credential with incomplete config", async () => {
+      const incompleteConfig: DelegatedAuthConfig = {
         clientId: "test-client-id",
         tenantId: "test-tenant-id",
+        // No clientSecret or certificate provided
       };
 
-      expect(
-        () => new CredentialFactory(applicationConfig, invalidConfig),
-      ).toThrow(
-        "Azure authentication requires either client certificate path or client secret",
+      // Factory creation should not throw
+      const factory = await CredentialFactory.create(
+        applicationConfig,
+        incompleteConfig,
+      );
+      expect(factory).toBeDefined();
+
+      // But creating delegated credential should throw because no clientSecret or certificate
+      const authContext: TokenBasedAuthContext = {
+        mode: AuthMode.Delegated,
+        userObjectId: "test-user-id",
+        tenantId: "test-tenant-id",
+        accessToken: "test-access-token",
+        expiresAt: Date.now() + 3600000,
+      };
+
+      expect(() => factory.createDelegatedCredential(authContext)).toThrow(
+        "Client secret is required for secret-based authentication",
       );
     });
 
-    it("should throw error for unsupported application strategy", () => {
+    it("should throw error for unsupported application strategy", async () => {
       const invalidConfig: ApplicationAuthConfig = {
         strategy: "unsupported" as any,
       };
 
-      const factory = new CredentialFactory(invalidConfig, delegatedConfig);
+      const factory = await CredentialFactory.create(
+        invalidConfig,
+        delegatedConfig,
+      );
 
       expect(() => factory.createApplicationCredential()).toThrow(
         "Unsupported application strategy: unsupported",

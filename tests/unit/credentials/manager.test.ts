@@ -33,7 +33,7 @@ describe("CredentialManager", () => {
   let clientManagerConfig: ClientManagerConfig;
   let authContext: TokenBasedAuthContext;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     applicationConfig = {
       strategy: "cli" as any,
     };
@@ -66,10 +66,10 @@ describe("CredentialManager", () => {
       expiresAt: Date.now() + 3600000,
     };
 
-    manager = new CredentialManager(
+    manager = await CredentialManager.create(
       applicationConfig,
-      delegatedConfig,
       clientManagerConfig,
+      delegatedConfig,
     );
   });
 

@@ -110,8 +110,13 @@ const authRequestFactory = (authData: { accessToken?: string }) => ({
   accessToken: authData.accessToken!
 });
 
-// Create provider with mapper
-const provider = await createClientProviderWithMapper(clientFactory, requestMapper, authRequestFactory);
+// Create provider with mapper (supports configuration options)
+const provider = await createClientProviderWithMapper(
+  clientFactory, 
+  requestMapper, 
+  authRequestFactory,
+  { configSource: customConfigSource } // Optional configuration
+);
 
 // Use with your custom request format
 const client = await provider.getClient({
@@ -120,8 +125,16 @@ const client = await provider.getClient({
   endpoint: 'https://mycluster.kusto.windows.net'
 });
 ```
+```
 
 ## Configuration
+
+The library supports multiple configuration sources with automatic detection:
+
+### Configuration Sources
+
+- **Environment Variables** (default): Standard environment variable configuration
+- **Azure App Configuration**: Centralized configuration service (when `AZURE_APPCONFIG_ENDPOINT` is set)
 
 ### Application Mode
 
@@ -150,10 +163,90 @@ export AZURE_TENANT_ID=your-tenant-id
 # Option 1: Client secret
 export AZURE_CLIENT_SECRET=your-client-secret
 
-# Option 2: Certificate
+# Option 2: Certificate (file path)
 export AZURE_CLIENT_CERTIFICATE_PATH=/path/to/cert.pem
 export AZURE_CLIENT_CERTIFICATE_PASSWORD=cert-password
+
+# Option 3: Certificate (base64 encoded)
+export AZURE_CLIENT_CERTIFICATE_BASE64=base64-encoded-certificate
+export AZURE_CLIENT_CERTIFICATE_PASSWORD=cert-password
 ```
+
+### Advanced Configuration
+
+Optional cache and JWT validation settings:
+
+```bash
+# Cache configuration
+export CACHE_KEY_PREFIX=myapp
+export CACHE_CLIENT_SLIDING_TTL=2700000  # 45 minutes
+export CACHE_CLIENT_MAX_SIZE=100
+export CACHE_CREDENTIAL_SLIDING_TTL=7200000  # 2 hours
+
+# JWT validation
+export JWT_AUDIENCE=your-expected-audience
+export JWT_ISSUER=your-expected-issuer
+export JWT_CLOCK_TOLERANCE=300  # 5 minutes
+```
+
+### Custom Configuration Source
+
+You can provide a custom configuration source that returns the expected data structure:
+
+```typescript
+import { createClientProvider, type ConfigurationSource } from '@jhzhu89/azure-client-pool';
+
+const customConfigSource: ConfigurationSource = {
+  async load() {
+    return {
+      azure: {
+        // Only required if you need delegated authentication
+        clientId: 'your-client-id',
+        tenantId: 'your-tenant-id',
+        
+        // Authentication credentials (for delegated auth only)
+        clientSecret: 'your-client-secret',
+        certificatePath: '/path/to/cert.pem',
+        certificateBase64: 'base64-encoded-certificate',
+        certificatePassword: 'cert-password',
+        
+        // Application auth configuration (optional, defaults work with Azure CLI/MI)
+        managedIdentityClientId: 'your-managed-identity-client-id', // Optional
+        applicationAuthStrategy: 'chain', // 'cli' | 'mi' | 'chain', defaults to 'chain'
+      },
+      jwt: {
+        // All JWT settings are optional
+        audience: 'expected-audience',
+        issuer: 'expected-issuer',
+        clockTolerance: 300, // seconds, defaults to 300
+        cacheMaxAge: 86400000, // milliseconds, defaults to 24 hours
+        jwksRequestsPerMinute: 10, // defaults to 10
+      },
+      cache: {
+        // All cache settings are optional with sensible defaults
+        keyPrefix: 'myapp', // defaults to 'client'
+        clientCacheSlidingTtl: 2700000, // 45 minutes default
+        clientCacheMaxSize: 100, // default
+        clientCacheBufferMs: 60000, // 1 minute default
+        credentialCacheSlidingTtl: 7200000, // 2 hours default
+        credentialCacheMaxSize: 200, // default
+        credentialCacheAbsoluteTtl: 28800000, // 8 hours default
+      }
+    };
+  }
+};
+
+const provider = await createClientProvider(clientFactory, { 
+  configSource: customConfigSource 
+});
+```
+
+**Configuration Notes:**
+- All configuration sections (`azure`, `jwt`, `cache`) are optional
+- **Application authentication works out-of-the-box** using Azure CLI or Managed Identity credentials
+- **Delegated authentication requires setup**: `clientId` and `tenantId` are required, plus at least one credential (`clientSecret`, `certificatePath`, or `certificateBase64`)
+- JWT validation is only enabled for delegated authentication when `clientId` and `tenantId` are provided
+- All cache and JWT settings have sensible defaults and can be omitted
 
 ## Use Cases
 
@@ -190,11 +283,12 @@ yarn add @jhzhu89/azure-client-pool
 This library provides:
 
 - **Multiple authentication strategies**: Azure CLI, Managed Identity, and certificate/secret-based authentication
+- **Flexible configuration sources**: Environment variables and Azure App Configuration support
 - **Intelligent caching**: Automatic client reuse with configurable TTL and size limits
 - **JWT validation**: Built-in token validation for delegated authentication
 - **Request deduplication**: Prevents concurrent duplicate requests
 - **TypeScript support**: Full type safety and IntelliSense support
-- **Flexible request mapping**: Support for custom request formats
+- **Flexible request mapping**: Support for custom request formats with optional configuration override
 
 ## Examples
 

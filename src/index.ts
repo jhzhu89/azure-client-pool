@@ -4,6 +4,8 @@ export {
   type ClientProvider,
 } from "./client-pool/provider.js";
 
+export { type ConfigurationSource } from "./config/source.js";
+
 export {
   McpRequestMapper,
   type RequestMapper,

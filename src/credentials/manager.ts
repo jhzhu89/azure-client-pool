@@ -29,18 +29,26 @@ export class CredentialManager {
   private readonly applicationCredentialCache: CredentialCache;
   private readonly credentialFactory: CredentialFactory;
 
-  constructor(
-    applicationConfig: ApplicationAuthConfig,
-    delegatedConfig: DelegatedAuthConfig,
+  private constructor(
+    credentialFactory: CredentialFactory,
     private readonly config: ClientManagerConfig,
   ) {
-    this.credentialFactory = new CredentialFactory(
-      applicationConfig,
-      delegatedConfig,
-    );
+    this.credentialFactory = credentialFactory;
     this.applicationCredentialCache = this.createCredentialCache(
       "application-credential",
     );
+  }
+
+  static async create(
+    applicationConfig: ApplicationAuthConfig,
+    config: ClientManagerConfig,
+    delegatedConfig?: DelegatedAuthConfig,
+  ): Promise<CredentialManager> {
+    const credentialFactory = await CredentialFactory.create(
+      applicationConfig,
+      delegatedConfig,
+    );
+    return new CredentialManager(credentialFactory, config);
   }
 
   private createCredentialCache(cacheType: string): CredentialCache {
