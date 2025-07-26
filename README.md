@@ -52,12 +52,12 @@ Each unique combination gets its own cache entry. For example:
 ### Basic Application Authentication
 
 ```typescript
-import { createClientProvider, type ApplicationAuthRequest, type ClientFactory } from '@jhzhu89/azure-client-pool';
+import { createClientProvider, AuthMode, type AuthRequest, type ClientFactory } from '@jhzhu89/azure-client-pool';
 
 // Define your client factory
 const clientFactory: ClientFactory<YourClient, YourOptions> = {
   async createClient(credentialProvider, options) {
-    const credential = await credentialProvider.getCredential('application');
+    const credential = await credentialProvider.getCredential(CredentialType.Application);
     return new YourAzureClient(credential, options);
   },
   getClientFingerprint(options) {
@@ -67,61 +67,79 @@ const clientFactory: ClientFactory<YourClient, YourOptions> = {
 
 // Create provider and get authenticated client
 const provider = await createClientProvider(clientFactory);
-const client = await provider.getClient({ mode: 'application' });
+
+const authRequest: AuthRequest = { mode: AuthMode.Application };
+const client = await provider.getClient(authRequest);
 ```
 
 ### Delegated Authentication
 
 ```typescript
-import { type DelegatedAuthRequest } from '@jhzhu89/azure-client-pool';
+import { Identity } from '@jhzhu89/azure-jwt-middleware';
 
-const authRequest: DelegatedAuthRequest = {
-  mode: 'delegated',
-  accessToken: 'user-access-token-from-oauth-flow'
+const identity = new Identity('user-access-token-from-oauth-flow', {
+  oid: 'user-object-id',
+  tid: 'tenant-id',
+  exp: Math.floor(Date.now() / 1000) + 3600, // expiration timestamp
+});
+
+const authRequest: AuthRequest = {
+  mode: AuthMode.Delegated,
+  identity
 };
 
 const client = await provider.getClient(authRequest);
 ```
 
-### Custom Request Mapping
+### Request-Aware Client Provider
 
-For custom request formats, use `createClientProviderWithMapper`:
+For custom request formats, use `createRequestAwareClientProvider`:
 
 ```typescript
-import { createClientProviderWithMapper, type RequestMapper, type AuthRequestFactory } from '@jhzhu89/azure-client-pool';
+import { 
+  createRequestAwareClientProvider, 
+  IdentityExtractor, 
+  type RequestExtractor,
+  type AuthStrategyResolver
+} from '@jhzhu89/azure-client-pool';
 
 // Define your custom request format
-interface MyCustomRequest {
+interface MyCustomRequest extends Record<string, unknown> {
   userId: string;
-  accessToken: string;
+  identity?: Identity;
   endpoint: string;
 }
 
-// Map custom requests to auth requests and options
-const requestMapper: RequestMapper<MyCustomRequest, { endpoint: string }> = {
-  extractAuthData: (request) => ({
-    accessToken: request.accessToken
-  }),
-  extractOptions: (request) => ({ endpoint: request.endpoint })
+// Create custom extractor if needed, or use built-in IdentityExtractor
+class CustomExtractor implements RequestExtractor<MyCustomRequest, { endpoint: string }> {
+  extractIdentity(request: MyCustomRequest): Identity | undefined {
+    return request.identity;
+  }
+  
+  extractOptions(request: MyCustomRequest): { endpoint: string } {
+    return { endpoint: request.endpoint };
+  }
+}
+
+// Define auth strategy
+const authResolver: AuthStrategyResolver = (identity?: Identity): AuthRequest => {
+  if (!identity) {
+    return { mode: AuthMode.Application };
+  }
+  return { mode: AuthMode.Delegated, identity };
 };
 
-const authRequestFactory = (authData: { accessToken?: string }) => ({
-  mode: 'delegated' as const,
-  accessToken: authData.accessToken!
-});
-
-// Create provider with mapper (supports configuration options)
-const provider = await createClientProviderWithMapper(
-  clientFactory, 
-  requestMapper, 
-  authRequestFactory,
-  { configSource: customConfigSource } // Optional configuration
+// Create request-aware provider
+const { getClient } = await createRequestAwareClientProvider(
+  clientFactory,
+  new CustomExtractor(),
+  authResolver
 );
 
 // Use with your custom request format
-const client = await provider.getClient({
+const client = await getClient({
   userId: 'user123',
-  accessToken: 'access-token',
+  identity: userIdentity,
   endpoint: 'https://mycluster.kusto.windows.net'
 });
 ```

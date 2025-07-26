@@ -1,89 +1,100 @@
 import {
-  createClientProviderWithMapper,
+  createClientProvider,
+  createRequestAwareClientProvider,
   CredentialType,
   AuthMode,
-  getLogger,
-  type RequestMapper,
-  type AuthRequestFactory,
+  type AuthRequest,
+  IdentityExtractor,
+  type RequestExtractor,
 } from "@jhzhu89/azure-client-pool";
+import { Identity } from "@jhzhu89/jwt-validator";
 
-interface ApiRequest {
+interface ApiRequest extends Record<string, unknown> {
   endpoint: string;
   method: string;
   headers: Record<string, string>;
   body?: any;
-  userId?: string;
-  scopes?: string[];
+  identity?: Identity;
+  requiresComposite?: boolean;
 }
 
 const compositeClientFactory = {
   async createClient(credentialProvider) {
-    const logger = getLogger("composite-factory");
-    const appCredential = await credentialProvider.getCredential(
-      CredentialType.Application,
-    );
-    const delegatedCredential = await credentialProvider.getCredential(
-      CredentialType.Delegated,
-    );
-
     return {
       async getPublicData() {
-        logger.info("Using app credential");
+        console.log("Using app credential for public data");
+        const appCredential = await credentialProvider.getCredential(
+          CredentialType.Application,
+        );
         return { data: "public" };
       },
 
       async getUserData() {
-        logger.info("Using delegated credential");
+        console.log("Using delegated credential for user data");
+        const delegatedCredential = await credentialProvider.getCredential(
+          CredentialType.Delegated,
+        );
         return { data: "user" };
       },
 
       async getAdminData() {
-        logger.info("Using composite credentials");
+        console.log("Using composite credentials for admin data");
+        const appCredential = await credentialProvider.getCredential(
+          CredentialType.Application,
+        );
+        const delegatedCredential = await credentialProvider.getCredential(
+          CredentialType.Delegated,
+        );
         return { data: "admin" };
       },
     };
   },
 };
 
-class ApiRequestMapper implements RequestMapper<ApiRequest> {
-  extractAuthData(request: ApiRequest) {
-    const authData: { accessToken?: string } & Record<string, any> = {};
+class ApiRequestExtractor
+  implements RequestExtractor<ApiRequest, { requiresComposite: boolean }>
+{
+  extractIdentity(request: ApiRequest): Identity | undefined {
+    return request.identity;
+  }
 
-    const authHeader =
-      request.headers["Authorization"] || request.headers["authorization"];
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      authData.accessToken = authHeader.substring(7);
-    }
-
-    if (request.userId) {
-      authData.userId = request.userId;
-    }
-
-    if (request.scopes) {
-      authData.scopes = request.scopes;
-    }
-
-    return authData;
+  extractOptions(request: ApiRequest): { requiresComposite: boolean } {
+    return { requiresComposite: request.requiresComposite || false };
   }
 }
 
-const createCompositeAuthRequest: AuthRequestFactory = (authData) => {
-  if (!authData.accessToken) {
-    throw new Error("Access token is required for composite auth");
+const createAuthRequest = (identity?: Identity): AuthRequest => {
+  if (!identity) {
+    return { mode: AuthMode.Application };
   }
-
-  return {
-    mode: AuthMode.Composite,
-    accessToken: authData.accessToken,
-  };
+  return { mode: AuthMode.Composite, identity };
 };
 
-async function demonstrateCompositeAuth() {
-  const logger = getLogger("composite-demo");
-  const { getClient } = await createClientProviderWithMapper(
+async function demonstrateDirectCompositeAuth() {
+  const provider = await createClientProvider(compositeClientFactory);
+
+  const identity = new Identity("admin.token", {
+    oid: "admin-123",
+    tid: "tenant-456",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  });
+
+  const authRequest: AuthRequest = {
+    mode: AuthMode.Composite,
+    identity,
+  };
+
+  const client = await provider.getClient(authRequest);
+  await client.getAdminData();
+
+  console.log("Direct composite auth completed");
+}
+
+async function demonstrateRequestAwareCompositeAuth() {
+  const { getClient } = await createRequestAwareClientProvider(
     compositeClientFactory,
-    new ApiRequestMapper(),
-    createCompositeAuthRequest,
+    new ApiRequestExtractor(),
+    createAuthRequest,
   );
 
   const requests: ApiRequest[] = [
@@ -96,22 +107,32 @@ async function demonstrateCompositeAuth() {
       endpoint: "/user",
       method: "GET",
       headers: { Authorization: "Bearer user.token" },
+      identity: new Identity("user.token", {
+        oid: "user-456",
+        tid: "tenant-456",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
     },
     {
       endpoint: "/admin",
       method: "GET",
       headers: { Authorization: "Bearer admin.token" },
-      scopes: ["admin"],
+      identity: new Identity("admin.token", {
+        oid: "admin-789",
+        tid: "tenant-456",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+      requiresComposite: true,
     },
   ];
 
   for (const request of requests) {
-    logger.info(`Processing ${request.endpoint}`);
+    console.log(`Processing ${request.endpoint}`);
     const client = await getClient(request);
 
-    if (request.scopes?.includes("admin")) {
+    if (request.requiresComposite) {
       await client.getAdminData();
-    } else if (request.headers["Authorization"]) {
+    } else if (request.identity) {
       await client.getUserData();
     } else {
       await client.getPublicData();
@@ -120,13 +141,12 @@ async function demonstrateCompositeAuth() {
 }
 
 async function main() {
-  const logger = getLogger("main");
-
   try {
-    await demonstrateCompositeAuth();
-    logger.info("Composite auth demo completed");
+    await demonstrateDirectCompositeAuth();
+    await demonstrateRequestAwareCompositeAuth();
+    console.log("Composite auth demo completed");
   } catch (error) {
-    logger.error("Demo failed:", error);
+    console.error("Demo failed:", error);
   }
 }
 

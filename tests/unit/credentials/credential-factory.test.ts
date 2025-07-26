@@ -4,8 +4,12 @@ import {
   type ApplicationAuthConfig,
   type DelegatedAuthConfig,
 } from "../../../src/config/configuration.js";
-import { type TokenBasedAuthContext } from "../../../src/auth/context.js";
-import { ApplicationAuthStrategy, AuthMode } from "../../../src/types.js";
+import {
+  ApplicationAuthStrategy,
+  AuthMode,
+  type DelegatedAuthRequest,
+} from "../../../src/types.js";
+import { Identity } from "@jhzhu89/jwt-validator";
 
 // Mock the Azure SDK
 mock.module("@azure/identity", () => ({
@@ -128,21 +132,24 @@ describe("CredentialFactory", () => {
   });
 
   describe("createDelegatedCredential", () => {
-    let authContext: TokenBasedAuthContext;
+    let authRequest: DelegatedAuthRequest;
 
     beforeEach(() => {
-      authContext = {
+      const identity = new Identity("test-access-token", {
+        oid: "test-user-id",
+        tid: "test-tenant-id",
+        exp: Math.floor((Date.now() + 3600000) / 1000),
+      });
+
+      authRequest = {
         mode: AuthMode.Delegated,
-        userObjectId: "test-user-id",
-        tenantId: "test-tenant-id",
-        accessToken: "test-access-token",
-        expiresAt: Date.now() + 3600000,
+        identity,
       };
     });
 
     it("should create delegated credential with client secret", () => {
       const credential =
-        credentialFactory.createDelegatedCredential(authContext);
+        credentialFactory.createDelegatedCredential(authRequest);
 
       expect(credential).toBeDefined();
       expect((credential as any).mockType).toBe("OnBehalfOfCredential");
@@ -165,7 +172,7 @@ describe("CredentialFactory", () => {
         applicationConfig,
         certConfig,
       );
-      const credential = factory.createDelegatedCredential(authContext);
+      const credential = factory.createDelegatedCredential(authRequest);
 
       expect(credential).toBeDefined();
       expect((credential as any).mockType).toBe("OnBehalfOfCredential");
@@ -178,9 +185,13 @@ describe("CredentialFactory", () => {
     });
 
     it("should use tenant ID from auth context", () => {
-      const contextWithDifferentTenant: TokenBasedAuthContext = {
-        ...authContext,
-        tenantId: "different-tenant-id",
+      const contextWithDifferentTenant: DelegatedAuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: new Identity("test-access-token", {
+          oid: "test-user-id",
+          tid: "different-tenant-id",
+          exp: Math.floor((Date.now() + 3600000) / 1000),
+        }),
       };
 
       const credential = credentialFactory.createDelegatedCredential(
@@ -199,15 +210,16 @@ describe("CredentialFactory", () => {
       expect(factory).toBeDefined();
 
       // But creating delegated credential should throw
-      const authContext: TokenBasedAuthContext = {
+      const authRequest: DelegatedAuthRequest = {
         mode: AuthMode.Delegated,
-        userObjectId: "test-user-id",
-        tenantId: "test-tenant-id",
-        accessToken: "test-access-token",
-        expiresAt: Date.now() + 3600000,
+        identity: new Identity("test-access-token", {
+          oid: "test-user-id",
+          tid: "test-tenant-id",
+          exp: Math.floor((Date.now() + 3600000) / 1000),
+        }),
       };
 
-      expect(() => factory.createDelegatedCredential(authContext)).toThrow(
+      expect(() => factory.createDelegatedCredential(authRequest)).toThrow(
         "Delegated authentication not configured. Please provide delegated auth configuration with: clientId, tenantId, and either clientSecret OR certificate configuration (certificatePath/certificatePem).",
       );
     });
@@ -227,15 +239,16 @@ describe("CredentialFactory", () => {
       expect(factory).toBeDefined();
 
       // But creating delegated credential should throw because no clientSecret or certificate
-      const authContext: TokenBasedAuthContext = {
+      const authRequest: DelegatedAuthRequest = {
         mode: AuthMode.Delegated,
-        userObjectId: "test-user-id",
-        tenantId: "test-tenant-id",
-        accessToken: "test-access-token",
-        expiresAt: Date.now() + 3600000,
+        identity: new Identity("test-access-token", {
+          oid: "test-user-id",
+          tid: "test-tenant-id",
+          exp: Math.floor((Date.now() + 3600000) / 1000),
+        }),
       };
 
-      expect(() => factory.createDelegatedCredential(authContext)).toThrow(
+      expect(() => factory.createDelegatedCredential(authRequest)).toThrow(
         "Client secret is required for secret-based authentication",
       );
     });

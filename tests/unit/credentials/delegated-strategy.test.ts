@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, mock, afterEach } from "bun:test";
 import { DelegatedCredentialStrategy } from "../../../src/credentials/delegated-strategy.js";
 import { type DelegatedAuthConfig } from "../../../src/config/configuration.js";
-import { type TokenBasedAuthContext } from "../../../src/auth/context.js";
-import { AuthMode } from "../../../src/types.js";
+import {
+  AuthMode,
+  type DelegatedAuthRequest,
+  type CompositeAuthRequest,
+} from "../../../src/types.js";
+import { Identity } from "@jhzhu89/jwt-validator";
 
 // Mock the Azure SDK
 const MockOnBehalfOfCredential = mock(function (options: any) {
   return { mockType: "OnBehalfOfCredential", options };
 });
 
-// Mock file system operations
+// Mock fs operations
 const mockFs = {
   writeFileSync: mock(() => {}),
   renameSync: mock(() => {}),
@@ -17,12 +21,11 @@ const mockFs = {
   readFileSync: mock(() => ""),
 };
 
+// Mock crypto
 const mockCrypto = {
   createHash: mock(() => ({
     update: mock(() => ({
-      digest: mock(() => ({
-        substring: mock(() => "mockedhash1234"),
-      })),
+      digest: mock(() => "mockedhash1234"),
     })),
   })),
 };
@@ -45,15 +48,18 @@ mock.module("../../../src/utils/logging.js", () => ({
 }));
 
 describe("DelegatedCredentialStrategy", () => {
-  let authContext: TokenBasedAuthContext;
+  let authRequest: DelegatedAuthRequest;
 
   beforeEach(() => {
-    authContext = {
+    const identity = new Identity("test-access-token", {
+      oid: "test-user-id",
+      tid: "test-tenant-id",
+      exp: Math.floor((Date.now() + 3600000) / 1000),
+    });
+
+    authRequest = {
       mode: AuthMode.Delegated,
-      userObjectId: "test-user-id",
-      tenantId: "test-tenant-id",
-      accessToken: "test-access-token",
-      expiresAt: Date.now() + 3600000,
+      identity,
     };
 
     // Reset all mocks before each test
@@ -80,7 +86,7 @@ describe("DelegatedCredentialStrategy", () => {
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
-      const credential = strategy.createOBOCredential(authContext);
+      const credential = strategy.createOBOCredential(authRequest);
 
       expect(credential).toBeDefined();
       expect((credential as any).mockType).toBe("OnBehalfOfCredential");
@@ -99,9 +105,13 @@ describe("DelegatedCredentialStrategy", () => {
         clientSecret: "test-client-secret",
       };
 
-      const contextWithDifferentTenant: TokenBasedAuthContext = {
-        ...authContext,
-        tenantId: "context-tenant-id",
+      const contextWithDifferentTenant: DelegatedAuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: new Identity("test-access-token", {
+          oid: "test-user-id",
+          tid: "context-tenant-id",
+          exp: Math.floor((Date.now() + 3600000) / 1000),
+        }),
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
@@ -123,7 +133,7 @@ describe("DelegatedCredentialStrategy", () => {
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
-      const credential = strategy.createOBOCredential(authContext);
+      const credential = strategy.createOBOCredential(authRequest);
 
       expect(credential).toBeDefined();
       expect((credential as any).mockType).toBe("OnBehalfOfCredential");
@@ -158,7 +168,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
-      const credential = strategy.createOBOCredential(authContext);
+      const credential = strategy.createOBOCredential(authRequest);
 
       expect(credential).toBeDefined();
       expect((credential as any).mockType).toBe("OnBehalfOfCredential");
@@ -192,25 +202,18 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
-      const credential = strategy.createOBOCredential(authContext);
+      const credential = strategy.createOBOCredential(authRequest);
 
       expect(credential).toBeDefined();
 
       // Should not create new file since existing one matches
       expect(mockFs.writeFileSync).not.toHaveBeenCalled();
       expect(mockFs.renameSync).not.toHaveBeenCalled();
-
-      const options = (credential as any).options;
-      const certificatePath = options.certificatePath;
-      expect(certificatePath).toMatch(
-        /\/dev\/shm\/azure-cert-mockedhash1234-\d+\.pem/,
-      );
     });
 
     it("should recreate certificate file if content differs", () => {
-      // Mock existing file with different content
       mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockReturnValue("different certificate content");
+      mockFs.readFileSync.mockReturnValue("different-content");
 
       const config: DelegatedAuthConfig = {
         clientId: "test-client-id",
@@ -219,20 +222,19 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
-      const credential = strategy.createOBOCredential(authContext);
+      const credential = strategy.createOBOCredential(authRequest);
 
       expect(credential).toBeDefined();
 
-      // Should create new file since existing one doesn't match
+      // Should create new file since content differs
       expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1);
       expect(mockFs.renameSync).toHaveBeenCalledTimes(1);
     });
 
     it("should handle file read errors gracefully", () => {
-      // Mock existing file but reading throws error
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockImplementation(() => {
-        throw new Error("Permission denied");
+        throw new Error("File read error");
       });
 
       const config: DelegatedAuthConfig = {
@@ -242,11 +244,11 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
-      const credential = strategy.createOBOCredential(authContext);
+      const credential = strategy.createOBOCredential(authRequest);
 
       expect(credential).toBeDefined();
 
-      // Should recreate file when read fails
+      // Should create new file since read failed
       expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1);
       expect(mockFs.renameSync).toHaveBeenCalledTimes(1);
     });
@@ -262,7 +264,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
-      const credential = strategy.createOBOCredential(authContext);
+      const credential = strategy.createOBOCredential(authRequest);
 
       expect(credential).toBeDefined();
 
@@ -314,11 +316,11 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
         };
 
         const strategy = new DelegatedCredentialStrategy(config);
-        const credential = strategy.createOBOCredential(authContext);
+        const credential = strategy.createOBOCredential(authRequest);
 
         const options = (credential as any).options;
         expect(options.certificatePath).toMatch(
-          /azure-cert-mockedhash1234-12345\.pem/,
+          /\/dev\/shm\/azure-cert-mockedhash1234-12345\.pem/,
         );
       } finally {
         // Restore original process.pid
@@ -335,7 +337,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       const config: DelegatedAuthConfig = {
         clientId: "test-client-id",
         tenantId: "test-tenant-id",
-        clientSecret: "test-secret",
+        clientSecret: "test-client-secret",
       };
 
       expect(() => new DelegatedCredentialStrategy(config)).not.toThrow();
@@ -345,7 +347,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       const config: DelegatedAuthConfig = {
         clientId: "test-client-id",
         tenantId: "test-tenant-id",
-        clientSecret: "test-secret",
+        clientSecret: "test-client-secret",
       };
 
       expect(() => new DelegatedCredentialStrategy(config)).not.toThrow();
@@ -372,7 +374,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
 
       const strategy = new DelegatedCredentialStrategy(config);
 
-      expect(() => strategy.createOBOCredential(authContext)).toThrow(
+      expect(() => strategy.createOBOCredential(authRequest)).toThrow(
         /Client secret is required for secret-based authentication/,
       );
     });
@@ -386,7 +388,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
 
       const strategy = new DelegatedCredentialStrategy(config);
 
-      expect(() => strategy.createOBOCredential(authContext)).toThrow(
+      expect(() => strategy.createOBOCredential(authRequest)).toThrow(
         /Client secret is required for secret-based authentication/,
       );
     });
@@ -400,7 +402,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
 
       const strategy = new DelegatedCredentialStrategy(config);
 
-      expect(() => strategy.createOBOCredential(authContext)).toThrow(
+      expect(() => strategy.createOBOCredential(authRequest)).toThrow(
         /Client secret is required for secret-based authentication/,
       );
     });
@@ -411,12 +413,16 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       const config: DelegatedAuthConfig = {
         clientId: "test-client-id",
         tenantId: "test-tenant-id",
-        clientSecret: "test-secret",
+        clientSecret: "test-client-secret",
       };
 
-      const contextWithCustomToken: TokenBasedAuthContext = {
-        ...authContext,
-        accessToken: "custom-access-token",
+      const contextWithCustomToken: DelegatedAuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: new Identity("custom-access-token", {
+          oid: "test-user-id",
+          tid: "test-tenant-id",
+          exp: Math.floor((Date.now() + 3600000) / 1000),
+        }),
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
@@ -433,12 +439,13 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
         clientSecret: "test-secret",
       };
 
-      const customContext: TokenBasedAuthContext = {
+      const customContext: CompositeAuthRequest = {
         mode: AuthMode.Composite,
-        userObjectId: "custom-user-id",
-        tenantId: "custom-tenant-id",
-        accessToken: "custom-access-token",
-        expiresAt: Date.now() + 7200000,
+        identity: new Identity("custom-access-token", {
+          oid: "custom-user-id",
+          tid: "custom-tenant-id",
+          exp: Math.floor((Date.now() + 7200000) / 1000),
+        }),
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
@@ -459,14 +466,18 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
         clientSecret: "test-client-secret",
       };
 
-      const expiredContext: TokenBasedAuthContext = {
-        ...authContext,
-        expiresAt: Date.now() - 1000,
+      const expiredRequest: DelegatedAuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: new Identity("expired-token", {
+          oid: "test-user-id",
+          tid: "test-tenant-id",
+          exp: Math.floor((Date.now() - 1000) / 1000),
+        }),
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
 
-      expect(() => strategy.createOBOCredential(expiredContext)).toThrow(
+      expect(() => strategy.createOBOCredential(expiredRequest)).toThrow(
         /User assertion token expired/,
       );
     });
@@ -479,14 +490,18 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       };
 
       const now = Date.now();
-      const expiredContext: TokenBasedAuthContext = {
-        ...authContext,
-        expiresAt: now,
+      const expiredRequest: DelegatedAuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: new Identity("expired-token", {
+          oid: "test-user-id",
+          tid: "test-tenant-id",
+          exp: Math.floor(now / 1000),
+        }),
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
 
-      expect(() => strategy.createOBOCredential(expiredContext)).toThrow(
+      expect(() => strategy.createOBOCredential(expiredRequest)).toThrow(
         /User assertion token expired/,
       );
     });
@@ -498,14 +513,18 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
         clientSecret: "test-client-secret",
       };
 
-      const validContext: TokenBasedAuthContext = {
-        ...authContext,
-        expiresAt: Date.now() + 60000,
+      const validRequest: DelegatedAuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: new Identity("valid-token", {
+          oid: "test-user-id",
+          tid: "test-tenant-id",
+          exp: Math.floor((Date.now() + 60000) / 1000),
+        }),
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
 
-      expect(() => strategy.createOBOCredential(validContext)).not.toThrow();
+      expect(() => strategy.createOBOCredential(validRequest)).not.toThrow();
     });
   });
 });

@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeEach, mock, spyOn } from "bun:test";
 import { CredentialManager } from "../../../src/credentials/manager.js";
-import { type TokenBasedAuthContext } from "../../../src/auth/context.js";
-import { AuthMode, CredentialType } from "../../../src/types.js";
+import {
+  AuthMode,
+  CredentialType,
+  type AuthRequest,
+} from "../../../src/types.js";
 import {
   type ClientManagerConfig,
   type ApplicationAuthConfig,
   type DelegatedAuthConfig,
 } from "../../../src/config/configuration.js";
+import { Identity } from "@jhzhu89/jwt-validator";
 
 const MockTokenCredential = mock(function () {
   return { mockType: "TokenCredential" };
@@ -31,7 +35,7 @@ describe("CredentialManager", () => {
   let applicationConfig: ApplicationAuthConfig;
   let delegatedConfig: DelegatedAuthConfig;
   let clientManagerConfig: ClientManagerConfig;
-  let authContext: TokenBasedAuthContext;
+  let delegatedAuthRequest: AuthRequest;
 
   beforeEach(async () => {
     applicationConfig = {
@@ -58,12 +62,15 @@ describe("CredentialManager", () => {
       },
     };
 
-    authContext = {
+    const identity = new Identity("test-access-token", {
+      oid: "test-user-id",
+      tid: "test-tenant-id",
+      exp: Math.floor((Date.now() + 3600000) / 1000),
+    });
+
+    delegatedAuthRequest = {
       mode: AuthMode.Delegated,
-      userObjectId: "test-user-id",
-      tenantId: "test-tenant-id",
-      accessToken: "test-access-token",
-      expiresAt: Date.now() + 3600000,
+      identity,
     };
 
     manager = await CredentialManager.create(
@@ -82,9 +89,9 @@ describe("CredentialManager", () => {
       const mockCredential = MockTokenCredential() as any;
       mockFactory.mockReturnValue(mockCredential);
 
-      const result = await manager.getDelegatedCredential(authContext);
+      const result = await manager.getDelegatedCredential(delegatedAuthRequest);
 
-      expect(mockFactory).toHaveBeenCalledWith(authContext);
+      expect(mockFactory).toHaveBeenCalledWith(delegatedAuthRequest);
       expect(result).toBe(mockCredential);
     });
 
@@ -96,8 +103,10 @@ describe("CredentialManager", () => {
       const mockCredential = MockTokenCredential() as any;
       mockFactory.mockReturnValue(mockCredential);
 
-      const result1 = await manager.getDelegatedCredential(authContext);
-      const result2 = await manager.getDelegatedCredential(authContext);
+      const result1 =
+        await manager.getDelegatedCredential(delegatedAuthRequest);
+      const result2 =
+        await manager.getDelegatedCredential(delegatedAuthRequest);
 
       expect(mockFactory).toHaveBeenCalledTimes(2);
       expect(result1).toBe(mockCredential);
@@ -112,8 +121,26 @@ describe("CredentialManager", () => {
       const mockCredential = MockTokenCredential() as any;
       mockFactory.mockReturnValue(mockCredential);
 
-      const context1 = { ...authContext, userObjectId: "user-1" };
-      const context2 = { ...authContext, userObjectId: "user-2" };
+      const identity1 = new Identity("token1", {
+        oid: "user-1",
+        tid: "test-tenant-id",
+        exp: Math.floor((Date.now() + 3600000) / 1000),
+      });
+
+      const identity2 = new Identity("token2", {
+        oid: "user-2",
+        tid: "test-tenant-id",
+        exp: Math.floor((Date.now() + 3600000) / 1000),
+      });
+
+      const context1: AuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: identity1,
+      };
+      const context2: AuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: identity2,
+      };
 
       await manager.getDelegatedCredential(context1);
       await manager.getDelegatedCredential(context2);

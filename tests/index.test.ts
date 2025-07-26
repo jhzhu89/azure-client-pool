@@ -5,9 +5,8 @@ describe("Azure Client Pool", () => {
     const module = await import("../src/index.js");
 
     expect(typeof module.createClientProvider).toBe("function");
-    expect(typeof module.createClientProviderWithMapper).toBe("function");
-    expect(typeof module.McpRequestMapper).toBe("function");
-    expect(typeof module.setRootLogger).toBe("function");
+    expect(typeof module.createRequestAwareClientProvider).toBe("function");
+    expect(typeof module.IdentityExtractor).toBe("function");
     expect(typeof module.getLogger).toBe("function");
     expect(typeof module.AuthMode).toBe("object");
     expect(typeof module.CredentialType).toBe("object");

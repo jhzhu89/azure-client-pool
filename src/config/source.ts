@@ -1,3 +1,3 @@
 export interface ConfigurationSource {
-  load(): Promise<Record<string, any>>;
+  load(): Promise<Record<string, unknown>>;
 }

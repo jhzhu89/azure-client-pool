@@ -1,16 +1,17 @@
 export {
   createClientProvider,
-  createClientProviderWithMapper,
-  type ClientProvider,
-} from "./client-pool/provider.js";
+  createRequestAwareClientProvider,
+} from "./client-pool/factory.js";
+
+export { type ClientProvider } from "./client-pool/client-provider.js";
 
 export { type ConfigurationSource } from "./config/source.js";
 
 export {
-  McpRequestMapper,
-  type RequestMapper,
-  type AuthRequestFactory,
-} from "./client-pool/request-mapper.js";
+  IdentityExtractor,
+  type RequestExtractor,
+  type AuthStrategyResolver,
+} from "./client-pool/request-extraction.js";
 
 export type {
   AuthRequest,

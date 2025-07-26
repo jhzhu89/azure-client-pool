@@ -1,17 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-import { createClientProvider } from "../../src/client-pool/provider.js";
+import { createClientProvider } from "../../src/client-pool/factory.js";
 import {
   type ClientFactory,
   AuthMode,
   type CredentialProvider,
   CredentialType,
+  type AuthRequest,
 } from "../../src/types.js";
+import { Identity } from "@jhzhu89/jwt-validator";
 import {
   delegatedModeWithSecretEnv,
   applicationModeEnv,
 } from "../fixtures/environment.js";
 
-// Mock Azure identity
 mock.module("@azure/identity", () => ({
   AzureCliCredential: mock(function () {
     return {
@@ -54,33 +55,7 @@ mock.module("@azure/identity", () => ({
   }),
 }));
 
-// Mock JWT validation
-mock.module("jsonwebtoken", () => ({
-  default: {
-    verify: mock((token: string, getKey: any, options: any, callback: any) => {
-      if (token === "invalid-token") {
-        return callback(new Error("Invalid token"));
-      }
-      callback(null, {
-        oid: "test-user-id",
-        tid: "test-tenant-id",
-        exp: Math.floor(Date.now() / 1000) + 3600,
-      });
-    }),
-  },
-}));
-
-mock.module("jwks-rsa", () => ({
-  default: mock((options: any) => ({
-    getSigningKey: mock((kid: string, callback: any) => {
-      callback(null, {
-        getPublicKey: () => "mock-public-key",
-      });
-    }),
-  })),
-}));
-
-mock.module("../../../src/utils/logging.js", () => ({
+mock.module("../../src/utils/logging.js", () => ({
   getLogger: () => ({
     debug: mock(() => {}),
     info: mock(() => {}),
@@ -89,7 +64,6 @@ mock.module("../../../src/utils/logging.js", () => ({
   }),
 }));
 
-// Mock client for testing
 interface MockClient {
   id: string;
   credentialProvider: CredentialProvider;
@@ -120,7 +94,6 @@ describe("ClientProvider Integration", () => {
     beforeEach(() => {
       process.env = {
         ...applicationModeEnv,
-        // Add required delegated config even for application mode tests
         AZURE_CLIENT_ID: "test-client-id",
         AZURE_TENANT_ID: "test-tenant-id",
         AZURE_CLIENT_SECRET: "test-client-secret",
@@ -138,9 +111,11 @@ describe("ClientProvider Integration", () => {
     it("should get client with application authentication", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
-      const client = await provider.getClient({
+      const authRequest: AuthRequest = {
         mode: AuthMode.Application,
-      });
+      };
+
+      const client = await provider.getClient(authRequest);
 
       expect(client).toBeDefined();
       expect(client.type).toBe("mock-client");
@@ -151,13 +126,12 @@ describe("ClientProvider Integration", () => {
     it("should cache clients for same authentication context", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
-      const client1 = await provider.getClient({
+      const authRequest: AuthRequest = {
         mode: AuthMode.Application,
-      });
+      };
 
-      const client2 = await provider.getClient({
-        mode: AuthMode.Application,
-      });
+      const client1 = await provider.getClient(authRequest);
+      const client2 = await provider.getClient(authRequest);
 
       expect(client1).toBe(client2);
       expect(mockClientFactory.createClient).toHaveBeenCalledTimes(1);
@@ -166,23 +140,16 @@ describe("ClientProvider Integration", () => {
     it("should invalidate client cache", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
-      // Get client first
-      await provider.getClient({
+      const authRequest: AuthRequest = {
         mode: AuthMode.Application,
-      });
+      };
 
-      // Invalidate cache
-      const invalidated = await provider.invalidateClientCache({
-        mode: AuthMode.Application,
-      });
+      await provider.getClient(authRequest);
 
+      const invalidated = await provider.invalidateClientCache(authRequest);
       expect(invalidated).toBe(true);
 
-      // Getting client again should create new instance
-      await provider.getClient({
-        mode: AuthMode.Application,
-      });
-
+      await provider.getClient(authRequest);
       expect(mockClientFactory.createClient).toHaveBeenCalledTimes(2);
     });
   });
@@ -194,17 +161,24 @@ describe("ClientProvider Integration", () => {
 
     it("should create client provider for delegated mode", async () => {
       const provider = await createClientProvider(mockClientFactory);
-
       expect(provider).toBeDefined();
     });
 
     it("should get client with delegated authentication", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
-      const client = await provider.getClient({
-        mode: AuthMode.Delegated,
-        accessToken: "valid-jwt-token",
+      const identity = new Identity("valid-jwt-token", {
+        oid: "test-user-id",
+        tid: "test-tenant-id",
+        exp: Math.floor(Date.now() / 1000) + 3600,
       });
+
+      const authRequest: AuthRequest = {
+        mode: AuthMode.Delegated,
+        identity,
+      };
+
+      const client = await provider.getClient(authRequest);
 
       expect(client).toBeDefined();
       expect(client.type).toBe("mock-client");
@@ -215,29 +189,41 @@ describe("ClientProvider Integration", () => {
     it("should cache clients per user", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
-      const client1 = await provider.getClient({
-        mode: AuthMode.Delegated,
-        accessToken: "valid-jwt-token",
+      const identity = new Identity("valid-jwt-token", {
+        oid: "test-user-id",
+        tid: "test-tenant-id",
+        exp: Math.floor(Date.now() / 1000) + 3600,
       });
 
-      const client2 = await provider.getClient({
+      const authRequest: AuthRequest = {
         mode: AuthMode.Delegated,
-        accessToken: "valid-jwt-token",
-      });
+        identity,
+      };
+
+      const client1 = await provider.getClient(authRequest);
+      const client2 = await provider.getClient(authRequest);
 
       expect(client1).toBe(client2);
       expect(mockClientFactory.createClient).toHaveBeenCalledTimes(1);
     });
 
-    it("should throw error for invalid JWT token", async () => {
+    it("should throw error for expired token", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
-      await expect(
-        provider.getClient({
-          mode: AuthMode.Delegated,
-          accessToken: "invalid-token",
-        }),
-      ).rejects.toThrow();
+      const identity = new Identity("expired-token", {
+        oid: "test-user-id",
+        tid: "test-tenant-id",
+        exp: Math.floor(Date.now() / 1000) - 3600,
+      });
+
+      const authRequest: AuthRequest = {
+        mode: AuthMode.Delegated,
+        identity,
+      };
+
+      await expect(provider.getClient(authRequest)).rejects.toThrow(
+        "Token has already expired",
+      );
     });
   });
 
@@ -245,7 +231,6 @@ describe("ClientProvider Integration", () => {
     beforeEach(() => {
       process.env = {
         ...applicationModeEnv,
-        // Add required delegated config
         AZURE_CLIENT_ID: "test-client-id",
         AZURE_TENANT_ID: "test-tenant-id",
         AZURE_CLIENT_SECRET: "test-client-secret",
@@ -261,21 +246,31 @@ describe("ClientProvider Integration", () => {
 
       const provider = await createClientProvider(failingFactory);
 
-      await expect(
-        provider.getClient({
-          mode: AuthMode.Application,
-        }),
-      ).rejects.toThrow("Client creation failed");
+      const authRequest: AuthRequest = {
+        mode: AuthMode.Application,
+      };
+
+      await expect(provider.getClient(authRequest)).rejects.toThrow(
+        "Client creation failed",
+      );
     });
 
-    it("should handle unsupported auth modes", async () => {
+    it("should validate required fields for delegated mode", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
-      await expect(
-        provider.getClient({
-          mode: "unsupported" as any,
-        }),
-      ).rejects.toThrow();
+      const identityWithoutTenant = new Identity("valid-token", {
+        oid: "test-user-id",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      });
+
+      const authRequest: AuthRequest = {
+        mode: AuthMode.Delegated,
+        identity: identityWithoutTenant,
+      };
+
+      await expect(provider.getClient(authRequest)).rejects.toThrow(
+        "tenantId is required",
+      );
     });
   });
 
@@ -283,7 +278,6 @@ describe("ClientProvider Integration", () => {
     beforeEach(() => {
       process.env = {
         ...applicationModeEnv,
-        // Add required delegated config
         AZURE_CLIENT_ID: "test-client-id",
         AZURE_TENANT_ID: "test-tenant-id",
         AZURE_CLIENT_SECRET: "test-client-secret",
@@ -293,19 +287,22 @@ describe("ClientProvider Integration", () => {
     it("should create multiple clients efficiently", async () => {
       const provider = await createClientProvider(mockClientFactory);
 
+      const authRequest: AuthRequest = {
+        mode: AuthMode.Application,
+      };
+
       const startTime = performance.now();
 
-      // Create clients in parallel
       await Promise.all([
-        provider.getClient({ mode: AuthMode.Application }),
-        provider.getClient({ mode: AuthMode.Application }),
-        provider.getClient({ mode: AuthMode.Application }),
+        provider.getClient(authRequest),
+        provider.getClient(authRequest),
+        provider.getClient(authRequest),
       ]);
 
       const endTime = performance.now();
 
-      expect(endTime - startTime).toBeLessThan(100); // Should be very fast due to caching
-      expect(mockClientFactory.createClient).toHaveBeenCalledTimes(1); // Should use cache
+      expect(endTime - startTime).toBeLessThan(100);
+      expect(mockClientFactory.createClient).toHaveBeenCalledTimes(1);
     });
   });
 });

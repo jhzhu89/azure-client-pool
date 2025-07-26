@@ -12,13 +12,6 @@ export class EnvironmentSource implements ConfigurationSource {
         managedIdentityClientId: process.env.AZURE_MANAGED_IDENTITY_CLIENT_ID,
         applicationAuthStrategy: process.env.AZURE_APPLICATION_AUTH_STRATEGY,
       },
-      jwt: {
-        audience: process.env.JWT_AUDIENCE,
-        issuer: process.env.JWT_ISSUER,
-        clockTolerance: process.env.JWT_CLOCK_TOLERANCE,
-        cacheMaxAge: process.env.JWT_CACHE_MAX_AGE,
-        jwksRequestsPerMinute: process.env.JWKS_REQUESTS_PER_MINUTE,
-      },
       cache: {
         keyPrefix: process.env.CACHE_KEY_PREFIX,
         clientCacheSlidingTtl: process.env.CACHE_CLIENT_SLIDING_TTL,

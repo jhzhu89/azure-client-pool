@@ -4,7 +4,6 @@ import {
   type ClientPoolConfiguration,
   type ApplicationAuthConfig,
   type DelegatedAuthConfig,
-  type JwtConfig,
   type ClientManagerConfig,
 } from "./configuration.js";
 import { ConfigurationSource } from "./source.js";
@@ -32,9 +31,7 @@ export class ConfigurationManager {
   private async loadAndValidateConfig(): Promise<ClientPoolConfiguration> {
     logger.debug("Loading raw configuration from source");
     const raw = await this.source.load();
-    const config = configSchema.parse(raw);
-    this.validate(config);
-    return config;
+    return configSchema.parse(raw);
   }
 
   private createConfigSource(): ConfigurationSource {
@@ -45,16 +42,6 @@ export class ConfigurationManager {
       return new AppConfigSource();
     }
     return new EnvironmentSource();
-  }
-
-  private validate(config: ClientPoolConfiguration): void {
-    if (
-      config.jwt.clockTolerance < 0 ||
-      config.jwt.cacheMaxAge <= 0 ||
-      config.jwt.jwksRequestsPerMinute <= 0
-    ) {
-      throw new Error("JWT configuration must have valid values");
-    }
   }
 
   async getApplicationAuthConfig(): Promise<ApplicationAuthConfig> {
@@ -107,24 +94,6 @@ export class ConfigurationManager {
       clientId,
       tenantId,
       ...selectedCredential,
-    };
-  }
-
-  async getJwtConfig(): Promise<JwtConfig | undefined> {
-    const config = await this.getConfiguration();
-
-    if (!config.azure.clientId || !config.azure.tenantId) {
-      return undefined;
-    }
-
-    return {
-      clientId: config.azure.clientId,
-      tenantId: config.azure.tenantId,
-      clockTolerance: config.jwt.clockTolerance,
-      cacheMaxAge: config.jwt.cacheMaxAge,
-      jwksRequestsPerMinute: config.jwt.jwksRequestsPerMinute,
-      ...(config.jwt.audience && { audience: config.jwt.audience }),
-      ...(config.jwt.issuer && { issuer: config.jwt.issuer }),
     };
   }
 

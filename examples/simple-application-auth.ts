@@ -22,7 +22,8 @@ const simpleClientFactory = {
 async function main() {
   const provider = await createClientProvider(simpleClientFactory);
 
-  const client = await provider.getClient({ mode: AuthMode.Application });
+  const authRequest = { mode: AuthMode.Application };
+  const client = await provider.getClient(authRequest);
 
   await client.doSomething();
 }

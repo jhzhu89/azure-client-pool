@@ -1,4 +1,5 @@
 import { type TokenCredential } from "@azure/identity";
+import { type Identity } from "@jhzhu89/jwt-validator";
 
 export const AuthMode = {
   Application: "application",
@@ -22,12 +23,12 @@ export interface ApplicationAuthRequest {
 
 export interface DelegatedAuthRequest {
   readonly mode: typeof AuthMode.Delegated;
-  readonly accessToken: string;
+  readonly identity: Identity;
 }
 
 export interface CompositeAuthRequest {
   readonly mode: typeof AuthMode.Composite;
-  readonly accessToken: string;
+  readonly identity: Identity;
 }
 
 export type AuthRequest =
@@ -36,7 +37,7 @@ export type AuthRequest =
   | CompositeAuthRequest;
 
 export interface CredentialProvider {
-  getCredential(authType: CredentialType): Promise<TokenCredential>;
+  getCredential(credentialType: CredentialType): Promise<TokenCredential>;
 }
 
 export interface ClientFactory<TClient, TOptions = void> {

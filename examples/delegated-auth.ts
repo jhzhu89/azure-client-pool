@@ -1,96 +1,91 @@
 import {
   createClientProvider,
-  createClientProviderWithMapper,
+  createRequestAwareClientProvider,
   AuthMode,
   CredentialType,
-  getLogger,
-  McpRequestMapper,
-  type AuthRequestFactory,
+  type AuthRequest,
+  IdentityExtractor,
 } from "@jhzhu89/azure-client-pool";
+import { Identity } from "@jhzhu89/jwt-validator";
 
 const delegatedClientFactory = {
   async createClient(credentialProvider) {
-    const logger = getLogger("delegated-factory");
     const delegatedCredential = await credentialProvider.getCredential(
       CredentialType.Delegated,
     );
 
     return {
       async getUserProfile() {
-        logger.info("Getting user profile with delegated credential");
+        console.log("Getting user profile with delegated credential");
         return { user: { id: "user123", name: "John Doe" } };
       },
 
       async getUserFiles() {
-        logger.info("Getting user files with delegated credential");
+        console.log("Getting user files with delegated credential");
         return { files: ["document1.docx", "presentation.pptx"] };
       },
     };
   },
 };
 
-const createDelegatedAuthRequest: AuthRequestFactory = (authData) => {
-  if (!authData.accessToken) {
-    throw new Error("Access token is required for delegated auth");
-  }
-
-  return {
-    mode: AuthMode.Delegated,
-    accessToken: authData.accessToken,
-  };
-};
-
 async function demonstrateDirectDelegatedAuth() {
-  const logger = getLogger("direct-delegated");
   const provider = await createClientProvider(delegatedClientFactory);
 
-  const authRequest = {
+  const identity = new Identity("user.jwt.token", {
+    oid: "user-123",
+    tid: "tenant-456",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  });
+
+  const authRequest: AuthRequest = {
     mode: AuthMode.Delegated,
-    accessToken: "user.jwt.token",
+    identity,
   };
 
   const client = await provider.getClient(authRequest);
   await client.getUserProfile();
   await client.getUserFiles();
 
-  logger.info("Direct delegated auth completed");
+  console.log("Direct delegated auth completed");
 }
 
-async function demonstrateMcpDelegatedAuth() {
-  const logger = getLogger("mcp-delegated");
-  const { getClient } = await createClientProviderWithMapper(
-    delegatedClientFactory,
-    new McpRequestMapper(),
-    createDelegatedAuthRequest,
-  );
-
-  const mcpRequest = {
-    method: "getUserData",
-    params: {
-      arguments: {
-        access_token: "mcp.user.token",
-        userId: "user456",
-      },
-    },
+async function demonstrateRequestAwareDelegatedAuth() {
+  const authStrategyResolver = (identity?: Identity): AuthRequest => {
+    if (!identity) {
+      return { mode: AuthMode.Application };
+    }
+    return { mode: AuthMode.Delegated, identity };
   };
 
-  const client = await getClient(mcpRequest);
+  const { getClient } = await createRequestAwareClientProvider(
+    delegatedClientFactory,
+    new IdentityExtractor(),
+    authStrategyResolver,
+  );
+
+  const identity = new Identity("user.jwt.token", {
+    oid: "user-456",
+    tid: "tenant-789",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  });
+
+  const request = { identity };
+
+  const client = await getClient(request);
   await client.getUserProfile();
   await client.getUserFiles();
 
-  logger.info("MCP delegated auth completed");
+  console.log("Request-aware delegated auth completed");
 }
 
 async function main() {
-  const logger = getLogger("delegated-demo");
-
   try {
     await demonstrateDirectDelegatedAuth();
-    await demonstrateMcpDelegatedAuth();
+    await demonstrateRequestAwareDelegatedAuth();
 
-    logger.info("All delegated auth demos completed");
+    console.log("All delegated auth demos completed");
   } catch (error) {
-    logger.error("Demo failed:", error);
+    console.error("Demo failed:", error);
   }
 }
 

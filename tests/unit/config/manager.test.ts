@@ -29,11 +29,6 @@ const validConfig = {
     clientSecret: "test-secret",
     applicationAuthStrategy: ApplicationAuthStrategy.Chain,
   },
-  jwt: {
-    clockTolerance: 300,
-    cacheMaxAge: 86400000,
-    jwksRequestsPerMinute: 10,
-  },
   cache: {
     keyPrefix: "client",
     clientCacheSlidingTtl: 2700000,
@@ -53,13 +48,6 @@ const validConfigWithCert = {
     managedIdentityClientId: "test-mi-client-id",
     applicationAuthStrategy: "mi" as const,
   },
-  jwt: {
-    audience: "test-audience",
-    issuer: "test-issuer",
-    clockTolerance: 600,
-    cacheMaxAge: 3600000,
-    jwksRequestsPerMinute: 20,
-  },
   cache: {
     keyPrefix: "test",
     clientCacheSlidingTtl: 1800000,
@@ -71,37 +59,10 @@ const validConfigWithCert = {
   },
 };
 
-const invalidJwtConfig = {
-  azure: {
-    clientId: "test-client-id",
-    tenantId: "test-tenant-id",
-    clientSecret: "test-secret",
-  },
-  jwt: {
-    clockTolerance: -1, // Invalid: negative value
-    cacheMaxAge: 0, // Invalid: zero value
-    jwksRequestsPerMinute: -5, // Invalid: negative value
-  },
-  cache: {
-    keyPrefix: "client",
-    clientCacheSlidingTtl: 2700000,
-    clientCacheMaxSize: 100,
-    clientCacheBufferMs: 60000,
-    credentialCacheSlidingTtl: 7200000,
-    credentialCacheMaxSize: 200,
-    credentialCacheAbsoluteTtl: 28800000,
-  },
-};
-
 const missingAzureConfig = {
   azure: {
     // Missing clientId and tenantId
     clientSecret: "test-secret",
-  },
-  jwt: {
-    clockTolerance: 300,
-    cacheMaxAge: 86400000,
-    jwksRequestsPerMinute: 10,
   },
   cache: {
     keyPrefix: "client",
@@ -193,18 +154,6 @@ describe("ConfigurationManager", () => {
   });
 
   describe("Configuration Validation", () => {
-    it("should validate JWT configuration values", async () => {
-      const invalidSource = {
-        load: mock(() => Promise.resolve(invalidJwtConfig)),
-      };
-
-      spyOn(manager as any, "source").mockReturnValue(invalidSource);
-
-      await expect(manager.getConfiguration()).rejects.toThrow(
-        "JWT configuration must have valid values",
-      );
-    });
-
     it("should validate required Azure configuration", async () => {
       const missingAzureSource = {
         load: mock(() => Promise.resolve(missingAzureConfig)),
@@ -360,42 +309,6 @@ describe("ConfigurationManager", () => {
     });
   });
 
-  describe("getJwtConfig", () => {
-    it("should return JWT config with required fields", async () => {
-      spyOn(manager as any, "source").mockReturnValue(mockSource);
-
-      const config = await manager.getJwtConfig();
-
-      expect(config).toEqual({
-        clientId: "test-client-id",
-        tenantId: "test-tenant-id",
-        clockTolerance: 300,
-        cacheMaxAge: 86400000,
-        jwksRequestsPerMinute: 10,
-      });
-    });
-
-    it("should return JWT config with optional fields", async () => {
-      const configWithJwtOptions = {
-        load: mock(() => Promise.resolve(validConfigWithCert)),
-      };
-
-      spyOn(manager as any, "source").mockReturnValue(configWithJwtOptions);
-
-      const config = await manager.getJwtConfig();
-
-      expect(config).toEqual({
-        clientId: "test-client-id",
-        tenantId: "test-tenant-id",
-        clockTolerance: 600,
-        cacheMaxAge: 3600000,
-        jwksRequestsPerMinute: 20,
-        audience: "test-audience",
-        issuer: "test-issuer",
-      });
-    });
-  });
-
   describe("getClientManagerConfig", () => {
     it("should return client manager config with default values", async () => {
       spyOn(manager as any, "source").mockReturnValue(mockSource);
@@ -477,47 +390,8 @@ describe("ConfigurationManager", () => {
       await expect(manager.getDelegatedAuthConfig()).rejects.toThrow(
         errorMessage,
       );
-      await expect(manager.getJwtConfig()).rejects.toThrow(errorMessage);
       await expect(manager.getClientManagerConfig()).rejects.toThrow(
         errorMessage,
-      );
-    });
-
-    it("should validate JWT configuration edge cases", async () => {
-      // Test clockTolerance
-      let testManager = new ConfigurationManager();
-      let config = {
-        ...validConfig,
-        jwt: { ...validConfig.jwt, clockTolerance: -1 },
-      };
-      let source = { load: mock(() => Promise.resolve(config)) };
-      spyOn(testManager as any, "source").mockReturnValue(source);
-      await expect(testManager.getConfiguration()).rejects.toThrow(
-        "JWT configuration must have valid values",
-      );
-
-      // Test cacheMaxAge
-      testManager = new ConfigurationManager();
-      config = {
-        ...validConfig,
-        jwt: { ...validConfig.jwt, cacheMaxAge: 0 },
-      };
-      source = { load: mock(() => Promise.resolve(config)) };
-      spyOn(testManager as any, "source").mockReturnValue(source);
-      await expect(testManager.getConfiguration()).rejects.toThrow(
-        "JWT configuration must have valid values",
-      );
-
-      // Test jwksRequestsPerMinute
-      testManager = new ConfigurationManager();
-      config = {
-        ...validConfig,
-        jwt: { ...validConfig.jwt, jwksRequestsPerMinute: 0 },
-      };
-      source = { load: mock(() => Promise.resolve(config)) };
-      spyOn(testManager as any, "source").mockReturnValue(source);
-      await expect(testManager.getConfiguration()).rejects.toThrow(
-        "JWT configuration must have valid values",
       );
     });
   });

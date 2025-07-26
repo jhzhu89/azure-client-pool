@@ -6,18 +6,13 @@ const HOURS = 60 * MINUTES;
 
 export const DEFAULT_CONFIG = {
   azure: {},
-  jwt: {
-    clockTolerance: 300,
-    cacheMaxAge: 24 * HOURS,
-    jwksRequestsPerMinute: 10,
-  },
   cache: {
     keyPrefix: "client",
     clientCacheSlidingTtl: 45 * MINUTES,
-    clientCacheMaxSize: 100,
+    clientCacheMaxSize: 1000,
     clientCacheBufferMs: 1 * MINUTES,
     credentialCacheSlidingTtl: 2 * HOURS,
-    credentialCacheMaxSize: 200,
+    credentialCacheMaxSize: 10,
     credentialCacheAbsoluteTtl: 8 * HOURS,
   },
 } as const;
@@ -33,20 +28,6 @@ const azureSchema = z
     applicationAuthStrategy: z.enum(["cli", "mi", "chain"]).optional(),
   })
   .default(DEFAULT_CONFIG.azure);
-
-const jwtSchema = z
-  .object({
-    audience: z.string().optional(),
-    issuer: z.string().optional(),
-    clockTolerance: z.coerce
-      .number()
-      .default(DEFAULT_CONFIG.jwt.clockTolerance),
-    cacheMaxAge: z.coerce.number().default(DEFAULT_CONFIG.jwt.cacheMaxAge),
-    jwksRequestsPerMinute: z.coerce
-      .number()
-      .default(DEFAULT_CONFIG.jwt.jwksRequestsPerMinute),
-  })
-  .default(DEFAULT_CONFIG.jwt);
 
 const cacheSchema = z
   .object({
@@ -74,21 +55,10 @@ const cacheSchema = z
 
 export const configSchema = z.object({
   azure: azureSchema,
-  jwt: jwtSchema,
   cache: cacheSchema,
 });
 
 export type ClientPoolConfiguration = z.infer<typeof configSchema>;
-
-export interface JwtConfig {
-  clientId: string;
-  tenantId: string;
-  audience?: string;
-  issuer?: string;
-  clockTolerance: number;
-  cacheMaxAge: number;
-  jwksRequestsPerMinute: number;
-}
 
 export interface ClientCacheConfig {
   slidingTtl: number;
