@@ -52,7 +52,7 @@ describe("DelegatedCredentialStrategy", () => {
       mode: AuthMode.Delegated,
       userObjectId: "test-user-id",
       tenantId: "test-tenant-id",
-      accessToken: "test-access-token",
+      userAssertion: "test-access-token",
       expiresAt: Date.now() + 3600000,
     };
 
@@ -416,7 +416,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
 
       const contextWithCustomToken: TokenBasedAuthContext = {
         ...authContext,
-        accessToken: "custom-access-token",
+        userAssertion: "custom-access-token",
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
@@ -437,7 +437,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
         mode: AuthMode.Composite,
         userObjectId: "custom-user-id",
         tenantId: "custom-tenant-id",
-        accessToken: "custom-access-token",
+        userAssertion: "custom-access-token",
         expiresAt: Date.now() + 7200000,
       };
 

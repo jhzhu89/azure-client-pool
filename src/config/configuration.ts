@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ApplicationAuthStrategy } from "../types.js";
 
-const MINUTES = 60 * 1000;
+const SECONDS = 1000;
+const MINUTES = 60 * SECONDS;
 const HOURS = 60 * MINUTES;
 
 export const DEFAULT_CONFIG = {
@@ -15,10 +16,10 @@ export const DEFAULT_CONFIG = {
     keyPrefix: "client",
     clientCacheSlidingTtl: 45 * MINUTES,
     clientCacheMaxSize: 100,
-    clientCacheBufferMs: 1 * MINUTES,
+    clientCacheBufferMs: 15 * SECONDS,
     credentialCacheSlidingTtl: 2 * HOURS,
     credentialCacheMaxSize: 200,
-    credentialCacheAbsoluteTtl: 8 * HOURS,
+    credentialCacheAbsoluteTtl: 12 * HOURS,
   },
 } as const;
 

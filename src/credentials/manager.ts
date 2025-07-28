@@ -56,7 +56,6 @@ export class CredentialManager {
       {
         maxSize: this.config.credentialCache.maxSize,
         slidingTtl: this.config.credentialCache.slidingTtl,
-        absoluteTtl: this.config.credentialCache.absoluteTtl,
       },
       cacheType,
     );
@@ -87,7 +86,10 @@ export class CredentialManager {
     return this.applicationCredentialCache.getOrCreate(
       cacheKey,
       async () => this.credentialFactory.createApplicationCredential(),
-      { authType: CredentialType.Application },
+      {
+        absoluteTtl: this.config.credentialCache.absoluteTtl,
+        contextInfo: { authType: CredentialType.Application },
+      },
     );
   }
 

@@ -2,13 +2,13 @@ import type { AuthRequest } from "../types.js";
 
 export type AuthRequestFactory = (
   authData: {
-    accessToken?: string;
+    userAssertion?: string;
   } & Record<string, unknown>,
 ) => AuthRequest;
 
 export interface RequestMapper<TSource, TOptions = void> {
   extractAuthData(source: TSource): {
-    accessToken?: string;
+    userAssertion?: string;
   } & Record<string, unknown>;
   extractOptions?(source: TSource): TOptions;
 }
@@ -16,18 +16,18 @@ export class McpRequestMapper
   implements RequestMapper<Record<string, unknown>>
 {
   extractAuthData(request: Record<string, unknown>): {
-    accessToken?: string;
+    userAssertion?: string;
   } & Record<string, unknown> {
     const params = request.params as Record<string, unknown> | undefined;
     const arguments_ = params?.arguments as Record<string, unknown> | undefined;
 
-    const authData: { accessToken?: string } & Record<string, unknown> = {};
+    const authData: { userAssertion?: string } & Record<string, unknown> = {};
 
     if (
-      arguments_?.access_token &&
-      typeof arguments_.access_token === "string"
+      arguments_?.user_assertion &&
+      typeof arguments_.user_assertion === "string"
     ) {
-      authData.accessToken = arguments_.access_token;
+      authData.userAssertion = arguments_.user_assertion;
     }
 
     return authData;

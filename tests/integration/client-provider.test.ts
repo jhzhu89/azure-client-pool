@@ -203,7 +203,7 @@ describe("ClientProvider Integration", () => {
 
       const client = await provider.getClient({
         mode: AuthMode.Delegated,
-        accessToken: "valid-jwt-token",
+        userAssertion: "valid-jwt-token",
       });
 
       expect(client).toBeDefined();
@@ -217,12 +217,12 @@ describe("ClientProvider Integration", () => {
 
       const client1 = await provider.getClient({
         mode: AuthMode.Delegated,
-        accessToken: "valid-jwt-token",
+        userAssertion: "valid-jwt-token",
       });
 
       const client2 = await provider.getClient({
         mode: AuthMode.Delegated,
-        accessToken: "valid-jwt-token",
+        userAssertion: "valid-jwt-token",
       });
 
       expect(client1).toBe(client2);
@@ -235,7 +235,7 @@ describe("ClientProvider Integration", () => {
       await expect(
         provider.getClient({
           mode: AuthMode.Delegated,
-          accessToken: "invalid-token",
+          userAssertion: "invalid-token",
         }),
       ).rejects.toThrow();
     });

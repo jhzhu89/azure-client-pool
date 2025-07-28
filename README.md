@@ -8,7 +8,7 @@
 
 ## Overview
 
-A TypeScript library for managing Azure SDK clients with automatic caching and multiple authentication strategies. It addresses common patterns when working with Azure services:
+A TypeScript library for managing Azure SDK clients with automatic caching and multiple authentication strategies. Addresses common patterns when working with Azure services:
 
 - Client instance reuse to avoid creation overhead
 - Multiple authentication flows (application credentials, delegated access)
@@ -77,10 +77,27 @@ import { type DelegatedAuthRequest } from '@jhzhu89/azure-client-pool';
 
 const authRequest: DelegatedAuthRequest = {
   mode: 'delegated',
-  accessToken: 'user-access-token-from-oauth-flow'
+  userAssertion: 'user-jwt-token-from-oauth-flow'
 };
 
 const client = await provider.getClient(authRequest);
+```
+
+### Logging
+
+The library includes built-in pino logging support:
+
+```typescript
+import { getLogger, setRootLogger } from '@jhzhu89/azure-client-pool';
+
+// Use default logger
+const logger = getLogger('my-component');
+logger.info('Operation started', { userId: 'user123' });
+
+// Or set custom logger configuration
+import { pino } from 'pino';
+const customLogger = pino({ level: 'debug' });
+setRootLogger(customLogger);
 ```
 
 ### Custom Request Mapping
@@ -93,21 +110,21 @@ import { createClientProviderWithMapper, type RequestMapper, type AuthRequestFac
 // Define your custom request format
 interface MyCustomRequest {
   userId: string;
-  accessToken: string;
+  userAssertion: string;
   endpoint: string;
 }
 
 // Map custom requests to auth requests and options
 const requestMapper: RequestMapper<MyCustomRequest, { endpoint: string }> = {
   extractAuthData: (request) => ({
-    accessToken: request.accessToken
+    userAssertion: request.userAssertion
   }),
   extractOptions: (request) => ({ endpoint: request.endpoint })
 };
 
-const authRequestFactory = (authData: { accessToken?: string }) => ({
+const authRequestFactory = (authData: { userAssertion?: string }) => ({
   mode: 'delegated' as const,
-  accessToken: authData.accessToken!
+  userAssertion: authData.userAssertion!
 });
 
 // Create provider with mapper (supports configuration options)
@@ -121,7 +138,7 @@ const provider = await createClientProviderWithMapper(
 // Use with your custom request format
 const client = await provider.getClient({
   userId: 'user123',
-  accessToken: 'access-token',
+  userAssertion: 'jwt-token',
   endpoint: 'https://mycluster.kusto.windows.net'
 });
 ```
@@ -280,8 +297,6 @@ yarn add @jhzhu89/azure-client-pool
 
 ## Features
 
-This library provides:
-
 - **Multiple authentication strategies**: Azure CLI, Managed Identity, and certificate/secret-based authentication
 - **Flexible configuration sources**: Environment variables and Azure App Configuration support
 - **Intelligent caching**: Automatic client reuse with configurable TTL and size limits
@@ -289,6 +304,7 @@ This library provides:
 - **Request deduplication**: Prevents concurrent duplicate requests
 - **TypeScript support**: Full type safety and IntelliSense support
 - **Flexible request mapping**: Support for custom request formats with optional configuration override
+- **Built-in logging**: Integrated pino logger with configurable output formats
 
 ## Examples
 

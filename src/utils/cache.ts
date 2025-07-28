@@ -28,7 +28,12 @@ function hasDispose(obj: unknown): obj is Disposable {
 export interface CacheConfig {
   maxSize: number;
   slidingTtl: number;
+}
+
+export interface CacheOptions {
+  slidingTtl?: number;
   absoluteTtl?: number;
+  contextInfo?: Record<string, unknown>;
 }
 
 interface CacheEntry<T> {
@@ -39,7 +44,6 @@ interface CacheEntry<T> {
 export class CacheManager<T> {
   private cache: TTLCache<string, CacheEntry<T>>;
   private pendingRequests: Map<string, Promise<T>>;
-  private absoluteTtl?: number | undefined;
   private slidingTtl: number;
 
   constructor(
@@ -47,7 +51,6 @@ export class CacheManager<T> {
     private cacheType: string,
   ) {
     this.pendingRequests = new Map();
-    this.absoluteTtl = config.absoluteTtl;
     this.slidingTtl = config.slidingTtl;
 
     this.cache = new TTLCache<string, CacheEntry<T>>({
@@ -115,10 +118,10 @@ export class CacheManager<T> {
     }
   }
 
-  private createCacheEntry(value: T): CacheEntry<T> {
+  private createCacheEntry(value: T, absoluteTtl?: number): CacheEntry<T> {
     const entry: CacheEntry<T> = { value };
-    if (this.absoluteTtl) {
-      entry.absoluteExpiresAt = Date.now() + this.absoluteTtl;
+    if (absoluteTtl !== undefined) {
+      entry.absoluteExpiresAt = Date.now() + absoluteTtl;
     }
     return entry;
   }
@@ -126,17 +129,21 @@ export class CacheManager<T> {
   async getOrCreate(
     cacheKey: string,
     factory: () => Promise<T>,
-    contextInfo?: Record<string, unknown>,
-    customTtl?: number,
+    options?: CacheOptions,
   ): Promise<T> {
     const cached = this.cache.get(cacheKey);
     if (cached) {
-      if (cached.absoluteExpiresAt && cached.absoluteExpiresAt <= Date.now()) {
-        return this.createInternal(cacheKey, factory, contextInfo, customTtl);
+      // Check if cached item has expired based on its absolute TTL
+      if (
+        cached.absoluteExpiresAt !== undefined &&
+        cached.absoluteExpiresAt <= Date.now()
+      ) {
+        return this.createInternal(cacheKey, factory, options);
       }
+
       logger.debug(`${this.cacheType} cache hit`, {
         cacheKey: this.createLoggableKey(cacheKey),
-        ...contextInfo,
+        ...options?.contextInfo,
       });
       return cached.value;
     }
@@ -145,22 +152,17 @@ export class CacheManager<T> {
     if (existingPromise) {
       logger.debug(`Found pending ${this.cacheType} request`, {
         cacheKey: this.createLoggableKey(cacheKey),
-        ...contextInfo,
+        ...options?.contextInfo,
       });
       return existingPromise;
     }
 
     logger.debug(`${this.cacheType} cache miss, creating new entry`, {
       cacheKey: this.createLoggableKey(cacheKey),
-      ...contextInfo,
+      ...options?.contextInfo,
     });
 
-    const promise = this.createInternal(
-      cacheKey,
-      factory,
-      contextInfo,
-      customTtl,
-    );
+    const promise = this.createInternal(cacheKey, factory, options);
     this.pendingRequests.set(cacheKey, promise);
 
     try {
@@ -173,20 +175,45 @@ export class CacheManager<T> {
   private async createInternal(
     cacheKey: string,
     factory: () => Promise<T>,
-    contextInfo?: Record<string, unknown>,
-    customTtl?: number,
+    options?: CacheOptions,
   ): Promise<T> {
     const value = await factory();
-    const entry = this.createCacheEntry(value);
 
-    const ttl = customTtl ?? this.slidingTtl;
-    this.cache.set(cacheKey, entry, { ttl });
+    let slidingTtl = options?.slidingTtl ?? this.slidingTtl;
+    const absoluteTtl = options?.absoluteTtl;
 
-    logger.debug(`${this.cacheType} entry created and cached`, {
+    if (absoluteTtl !== undefined && absoluteTtl <= 0) {
+      this.cache.delete(cacheKey);
+      return value;
+    }
+
+    if (absoluteTtl !== undefined && slidingTtl > absoluteTtl) {
+      logger.debug(
+        `${this.cacheType} slidingTtl adjusted from ${slidingTtl}ms to ${absoluteTtl}ms`,
+        {
+          cacheKey: this.createLoggableKey(cacheKey),
+        },
+      );
+      slidingTtl = absoluteTtl;
+    }
+
+    const effectiveTtl = Math.max(slidingTtl, 1);
+
+    const entry = this.createCacheEntry(value, absoluteTtl);
+    this.cache.set(cacheKey, entry, { ttl: effectiveTtl });
+
+    const logData: Record<string, unknown> = {
       cacheKey: this.createLoggableKey(cacheKey),
-      slidingTTL: ttl,
-      ...contextInfo,
-    });
+      slidingTTL: slidingTtl,
+      effectiveTTL: effectiveTtl,
+      ...options?.contextInfo,
+    };
+
+    if (absoluteTtl !== undefined) {
+      logData.absoluteTTL = absoluteTtl;
+    }
+
+    logger.debug(`${this.cacheType} entry created and cached`, logData);
 
     return value;
   }

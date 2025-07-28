@@ -47,12 +47,12 @@ const compositeClientFactory = {
 
 class ApiRequestMapper implements RequestMapper<ApiRequest> {
   extractAuthData(request: ApiRequest) {
-    const authData: { accessToken?: string } & Record<string, any> = {};
+    const authData: { userAssertion?: string } & Record<string, any> = {};
 
     const authHeader =
       request.headers["Authorization"] || request.headers["authorization"];
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      authData.accessToken = authHeader.substring(7);
+      authData.userAssertion = authHeader.substring(7);
     }
 
     if (request.userId) {
@@ -68,13 +68,13 @@ class ApiRequestMapper implements RequestMapper<ApiRequest> {
 }
 
 const createCompositeAuthRequest: AuthRequestFactory = (authData) => {
-  if (!authData.accessToken) {
-    throw new Error("Access token is required for composite auth");
+  if (!authData.userAssertion) {
+    throw new Error("User assertion is required for composite auth");
   }
 
   return {
     mode: AuthMode.Composite,
-    accessToken: authData.accessToken,
+    userAssertion: authData.userAssertion,
   };
 };
 

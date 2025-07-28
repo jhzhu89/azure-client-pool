@@ -5,7 +5,11 @@ import {
   type TokenBasedAuthContext,
 } from "../auth/context.js";
 import { CredentialManager } from "../credentials/manager.js";
-import { CacheManager, createStableCacheKey } from "../utils/cache.js";
+import {
+  CacheManager,
+  createStableCacheKey,
+  type CacheOptions,
+} from "../utils/cache.js";
 import { getLogger } from "../utils/logging.js";
 
 const logger = getLogger("client-pool");
@@ -38,21 +42,35 @@ export class ClientPool<TClient, TOptions = void> {
       rawCacheKey,
     });
 
-    // Calculate dynamic TTL for token-based authentication
-    let customTtl: number | undefined;
+    const cacheOptions: CacheOptions = {
+      contextInfo: {
+        authMode: authContext.mode,
+        userObjectId:
+          "userObjectId" in authContext ? authContext.userObjectId : undefined,
+        tenantId: "tenantId" in authContext ? authContext.tenantId : undefined,
+      },
+    };
+
     if (authContext.mode !== AuthMode.Application) {
       const tokenContext = authContext as TokenBasedAuthContext;
       const now = Date.now();
       const tokenRemainingTime = tokenContext.expiresAt - now;
       const bufferMs = this.config.clientCache.bufferMs;
 
-      customTtl = Math.max(tokenRemainingTime - bufferMs, 0);
+      cacheOptions.absoluteTtl = Math.max(tokenRemainingTime - bufferMs, 0);
 
       logger.debug("Using dynamic TTL for token-based auth", {
         tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
         tokenRemainingTime: Math.floor(tokenRemainingTime / 1000),
         bufferMs: Math.floor(bufferMs / 1000),
-        customTtl: Math.floor(customTtl / 1000),
+        customTtl: Math.floor(cacheOptions.absoluteTtl / 1000),
+      });
+    } else {
+      const applicationTtl = 2 * 60 * 60 * 1000;
+      cacheOptions.absoluteTtl = applicationTtl;
+
+      logger.debug("Using fixed TTL for application auth", {
+        applicationTtl: Math.floor(applicationTtl / 1000),
       });
     }
 
@@ -75,13 +93,7 @@ export class ClientPool<TClient, TOptions = void> {
         };
         return this.clientFactory.createClient(credentialProvider, options);
       },
-      {
-        authMode: authContext.mode,
-        userObjectId:
-          "userObjectId" in authContext ? authContext.userObjectId : undefined,
-        tenantId: "tenantId" in authContext ? authContext.tenantId : undefined,
-      },
-      customTtl,
+      cacheOptions,
     );
   }
 

@@ -16,14 +16,14 @@ describe("McpRequestMapper", () => {
       const request = {
         params: {
           arguments: {
-            access_token: "test-access-token",
+            user_assertion: "test-access-token",
           },
         },
       };
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBe("test-access-token");
+      expect(authData.userAssertion).toBe("test-access-token");
     });
 
     it("should return empty auth data when no access token is present", () => {
@@ -31,7 +31,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
       expect(Object.keys(authData)).toHaveLength(0);
     });
 
@@ -42,7 +42,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should handle missing arguments", () => {
@@ -54,56 +54,56 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should ignore non-string access tokens", () => {
       const request = {
         params: {
           arguments: {
-            access_token: 12345,
+            user_assertion: 12345,
           },
         },
       };
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should handle boolean access token", () => {
       const request = {
         params: {
           arguments: {
-            access_token: true,
+            user_assertion: true,
           },
         },
       };
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should handle null or undefined access token", () => {
       const request = {
         params: {
           arguments: {
-            access_token: null,
+            user_assertion: null,
           },
         },
       };
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should handle nested request structures", () => {
       const request = {
         params: {
           arguments: {
-            access_token: "nested-token",
+            user_assertion: "nested-token",
             additional_data: {
               nested: "value",
             },
@@ -117,7 +117,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBe("nested-token");
+      expect(authData.userAssertion).toBe("nested-token");
     });
 
     it("should handle non-object params gracefully", () => {
@@ -127,7 +127,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should handle non-object arguments gracefully", () => {
@@ -139,7 +139,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(request);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
   });
 
@@ -152,7 +152,7 @@ describe("McpRequestMapper", () => {
         params: {
           name: "azure_graph_users_list",
           arguments: {
-            access_token: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiI...",
+            user_assertion: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiI...",
             filter: "department eq 'Engineering'",
             select: "id,displayName,mail",
           },
@@ -161,7 +161,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(mcpRequest);
 
-      expect(authData.accessToken).toBe(
+      expect(authData.userAssertion).toBe(
         "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiI...",
       );
     });
@@ -178,7 +178,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(mcpRequest);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should handle complex nested MCP request", () => {
@@ -189,7 +189,7 @@ describe("McpRequestMapper", () => {
         params: {
           name: "azure_complex_operation",
           arguments: {
-            access_token: "user-specific-jwt-token",
+            user_assertion: "user-specific-jwt-token",
             operation: {
               type: "batch",
               requests: [
@@ -211,7 +211,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(mcpRequest);
 
-      expect(authData.accessToken).toBe("user-specific-jwt-token");
+      expect(authData.userAssertion).toBe("user-specific-jwt-token");
     });
 
     it("should handle empty arguments object", () => {
@@ -227,14 +227,14 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(mcpRequest);
 
-      expect(authData.accessToken).toBeUndefined();
+      expect(authData.userAssertion).toBeUndefined();
     });
 
     it("should preserve additional auth data beyond access token", () => {
       const mcpRequest = {
         params: {
           arguments: {
-            access_token: "token",
+            user_assertion: "token",
             custom_auth_data: "value",
             user_id: "123",
           },
@@ -243,7 +243,7 @@ describe("McpRequestMapper", () => {
 
       const authData = mapper.extractAuthData(mcpRequest);
 
-      expect(authData.accessToken).toBe("token");
+      expect(authData.userAssertion).toBe("token");
       expect(Object.keys(authData)).toHaveLength(1);
     });
   });

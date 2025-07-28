@@ -9,8 +9,7 @@
     "typescript",
     "oauth",
     "jwt",
-    "cache",
-    "production"
+    "cache"
   ],
   "author": "jhzhu89",
   "license": "MIT",
@@ -42,51 +41,48 @@
     "bun": ">=1.0.0"
   },
   "scripts": {
-    "build": "bun run build:clean && bun run build:js && bun run build:types",
-    "build:js": "tsup",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build": "tsup",
     "build:watch": "tsup --watch",
-    "build:clean": "rm -rf dist",
     "dev": "bun --watch src/index.ts",
     "test": "bun test",
-    "test:unit": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
+    "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
-    "lint": "bun x eslint src --ext .ts",
-    "lint:fix": "bun x eslint src --ext .ts --fix",
-    "docs": "bun x typedoc",
-    "docs:serve": "bun x typedoc --serve",
-    "clean": "rm -rf dist node_modules",
-    "typecheck": "bun x tsc --noEmit",
-    "prepublishOnly": "bun run lint && bun run typecheck && bun run test && bun run build",
-    "install:bun": "bun install",
-    "install:fallback": "npm install"
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,json}\"",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run lint && bun run test && bun run build"
   },
   "peerDependencies": {
-    "@azure/identity": "^4.10.0"
+    "@azure/app-configuration-provider": "^2.1.0",
+    "@azure/identity": "^4.10.0",
+    "zod": "^3.25.76"
   },
   "dependencies": {
-    "@azure/app-configuration-provider": "^2.1.0",
     "@isaacs/ttlcache": "^1.4.1",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.2.0",
     "pino": "^9.7.0",
-    "pino-pretty": "^13.0.0",
-    "zod": "^4.0.8"
+    "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
+    "@azure/app-configuration-provider": "^2.1.0",
+    "@azure/identity": "^4.10.0",
     "@eslint/js": "^9.30.0",
     "@types/bun": "latest",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.8",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",
-    "@vitest/ui": "^3.2.4",
     "eslint": "^9.30.0",
+    "prettier": "^3.3.3",
     "tsup": "^8.5.0",
-    "typedoc": "^0.28.7",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "zod": "^3.25.76"
+  },
+  "prettier": {
+    "semi": true,
+    "singleQuote": false,
+    "printWidth": 80,
+    "tabWidth": 2
   }
 }

@@ -22,12 +22,12 @@ export interface ApplicationAuthRequest {
 
 export interface DelegatedAuthRequest {
   readonly mode: typeof AuthMode.Delegated;
-  readonly accessToken: string;
+  readonly userAssertion: string;
 }
 
 export interface CompositeAuthRequest {
   readonly mode: typeof AuthMode.Composite;
-  readonly accessToken: string;
+  readonly userAssertion: string;
 }
 
 export type AuthRequest =

@@ -13,7 +13,7 @@ export interface TokenBasedAuthContext extends BaseAuthContext {
   readonly mode: typeof AuthMode.Delegated | typeof AuthMode.Composite;
   readonly tenantId: string;
   readonly userObjectId: string;
-  readonly accessToken: string;
+  readonly userAssertion: string;
   readonly expiresAt: number;
 }
 
@@ -28,7 +28,7 @@ export const AuthContextFactory = {
     mode: AuthMode.Delegated,
     tenantId: token.tenantId,
     userObjectId: token.userObjectId,
-    accessToken: token.rawToken,
+    userAssertion: token.rawToken,
     expiresAt: token.expiresAt,
   }),
 
@@ -36,7 +36,7 @@ export const AuthContextFactory = {
     mode: AuthMode.Composite,
     tenantId: token.tenantId,
     userObjectId: token.userObjectId,
-    accessToken: token.rawToken,
+    userAssertion: token.rawToken,
     expiresAt: token.expiresAt,
   }),
 };

@@ -30,13 +30,13 @@ const delegatedClientFactory = {
 };
 
 const createDelegatedAuthRequest: AuthRequestFactory = (authData) => {
-  if (!authData.accessToken) {
-    throw new Error("Access token is required for delegated auth");
+  if (!authData.userAssertion) {
+    throw new Error("User assertion is required for delegated auth");
   }
 
   return {
     mode: AuthMode.Delegated,
-    accessToken: authData.accessToken,
+    userAssertion: authData.userAssertion,
   };
 };
 
@@ -46,7 +46,7 @@ async function demonstrateDirectDelegatedAuth() {
 
   const authRequest = {
     mode: AuthMode.Delegated,
-    accessToken: "user.jwt.token",
+    userAssertion: "user.jwt.token",
   };
 
   const client = await provider.getClient(authRequest);
@@ -68,7 +68,7 @@ async function demonstrateMcpDelegatedAuth() {
     method: "getUserData",
     params: {
       arguments: {
-        access_token: "mcp.user.token",
+        user_assertion: "mcp.user.token",
         userId: "user456",
       },
     },

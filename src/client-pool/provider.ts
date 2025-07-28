@@ -58,7 +58,7 @@ class ClientProviderImpl<TClient, TOptions = void>
           );
         }
         const parsedToken = await this.jwtHandler.validateToken(
-          authRequest.accessToken,
+          authRequest.userAssertion,
         );
         return AuthContextFactory.delegated(parsedToken);
       }
@@ -70,7 +70,7 @@ class ClientProviderImpl<TClient, TOptions = void>
           );
         }
         const compositeToken = await this.jwtHandler.validateToken(
-          authRequest.accessToken,
+          authRequest.userAssertion,
         );
         return AuthContextFactory.composite(compositeToken);
       }

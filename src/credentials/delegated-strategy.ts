@@ -81,7 +81,7 @@ export class DelegatedCredentialStrategy {
     const baseOptions = {
       tenantId: context.tenantId,
       clientId: this.config.clientId,
-      userAssertionToken: context.accessToken,
+      userAssertionToken: context.userAssertion,
     };
 
     if (this.effectiveCertPath) {

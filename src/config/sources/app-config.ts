@@ -16,7 +16,13 @@ export class AppConfigSource implements ConfigurationSource {
   private labelFilter: string;
 
   constructor() {
-    this.endpoint = process.env.AZURE_APPCONFIG_ENDPOINT!;
+    const endpoint = process.env.AZURE_APPCONFIG_ENDPOINT;
+    if (!endpoint) {
+      throw new Error(
+        "AZURE_APPCONFIG_ENDPOINT environment variable is required",
+      );
+    }
+    this.endpoint = endpoint;
     this.keyPrefix = process.env.AZURE_APPCONFIG_KEY_PREFIX || "clientPool:";
     this.labelFilter = process.env.AZURE_APPCONFIG_LABEL_FILTER || "";
 
