@@ -16,9 +16,17 @@ export class AppConfigSource implements ConfigurationSource {
   private labelFilter: string;
 
   constructor() {
-    this.endpoint = process.env.AZURE_APPCONFIG_ENDPOINT!;
-    this.keyPrefix = process.env.AZURE_APPCONFIG_KEY_PREFIX || "clientPool:";
-    this.labelFilter = process.env.AZURE_APPCONFIG_LABEL_FILTER || "";
+    const endpoint = process.env.AZURE_APPCONFIG_ENDPOINT;
+    if (!endpoint) {
+      throw new Error(
+        "AZURE_APPCONFIG_ENDPOINT environment variable is required",
+      );
+    }
+    this.endpoint = endpoint;
+    this.keyPrefix =
+      process.env.AZURE_APPCONFIG_CLIENT_POOL_KEY_PREFIX || "clientPool:";
+    this.labelFilter =
+      process.env.AZURE_APPCONFIG_CLIENT_POOL_LABEL_FILTER || "";
 
     logger.debug("AppConfigSource initialized", {
       endpoint: this.endpoint,
@@ -28,7 +36,6 @@ export class AppConfigSource implements ConfigurationSource {
   }
 
   async load() {
-    logger.debug("Loading configuration from Azure App Configuration");
     const credential = this.createCredential();
 
     try {
@@ -48,32 +55,6 @@ export class AppConfigSource implements ConfigurationSource {
       const config = settings.constructConfigurationObject({ separator: ":" });
       logger.debug("Configuration loaded from App Configuration", {
         configKeys: Object.keys(config),
-      });
-
-      // Debug certificate data from Key Vault references
-      const certificateKeys = Object.keys(config).filter(
-        (key) =>
-          key.toLowerCase().includes("cert") ||
-          key.toLowerCase().includes("pfx") ||
-          key.toLowerCase().includes("private") ||
-          key.toLowerCase().includes("key"),
-      );
-
-      certificateKeys.forEach((key) => {
-        const value = config[key];
-        if (typeof value === "string" && value.length > 100) {
-          logger.debug("Certificate-related config detected", {
-            key,
-            valueLength: value.length,
-            startsWithPem: value.startsWith("-----BEGIN"),
-            startsWithMii: value.startsWith("MII"),
-            firstChars: value.substring(0, 50),
-            lastChars: value.substring(value.length - 50),
-            isProbablyBase64: /^[A-Za-z0-9+/]+=*$/.test(
-              value.replace(/\s/g, ""),
-            ),
-          });
-        }
       });
 
       return config;

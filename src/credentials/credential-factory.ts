@@ -3,7 +3,7 @@ import {
   type DelegatedAuthConfig,
   type ApplicationAuthConfig,
 } from "../config/configuration.js";
-import { type TokenBasedAuthContext } from "../auth/context.js";
+import { type UserAssertionAuthContext } from "../auth/context.js";
 import { ApplicationCredentialStrategy } from "./application-strategy.js";
 import { DelegatedCredentialStrategy } from "./delegated-strategy.js";
 
@@ -34,13 +34,15 @@ export class CredentialFactory {
     return this.applicationStrategy.createCredential();
   }
 
-  createDelegatedCredential(context: TokenBasedAuthContext): TokenCredential {
+  createDelegatedCredential(
+    authContext: UserAssertionAuthContext,
+  ): TokenCredential {
     if (!this.delegatedStrategy) {
       throw new Error(
         "Delegated authentication not configured. Please provide delegated auth configuration with: " +
           "clientId, tenantId, and either clientSecret OR certificate configuration (certificatePath/certificatePem).",
       );
     }
-    return this.delegatedStrategy.createOBOCredential(context);
+    return this.delegatedStrategy.createOBOCredential(authContext);
   }
 }

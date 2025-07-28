@@ -22,12 +22,12 @@ export interface ApplicationAuthRequest {
 
 export interface DelegatedAuthRequest {
   readonly mode: typeof AuthMode.Delegated;
-  readonly accessToken: string;
+  readonly userAssertionToken: string;
 }
 
 export interface CompositeAuthRequest {
   readonly mode: typeof AuthMode.Composite;
-  readonly accessToken: string;
+  readonly userAssertionToken: string;
 }
 
 export type AuthRequest =
@@ -36,7 +36,7 @@ export type AuthRequest =
   | CompositeAuthRequest;
 
 export interface CredentialProvider {
-  getCredential(authType: CredentialType): Promise<TokenCredential>;
+  getCredential(credentialType: CredentialType): Promise<TokenCredential>;
 }
 
 export interface ClientFactory<TClient, TOptions = void> {

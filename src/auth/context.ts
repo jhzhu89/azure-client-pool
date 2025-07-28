@@ -9,34 +9,36 @@ export interface ApplicationAuthContext extends BaseAuthContext {
   readonly mode: typeof AuthMode.Application;
 }
 
-export interface TokenBasedAuthContext extends BaseAuthContext {
+export interface UserAssertionAuthContext extends BaseAuthContext {
   readonly mode: typeof AuthMode.Delegated | typeof AuthMode.Composite;
   readonly tenantId: string;
   readonly userObjectId: string;
-  readonly accessToken: string;
+  readonly userAssertionToken: string;
   readonly expiresAt: number;
 }
 
-export type AuthContext = ApplicationAuthContext | TokenBasedAuthContext;
+export type AuthContext = ApplicationAuthContext | UserAssertionAuthContext;
+
+export type TokenBasedAuthContext = UserAssertionAuthContext;
 
 export const AuthContextFactory = {
   application: (): ApplicationAuthContext => ({
     mode: AuthMode.Application,
   }),
 
-  delegated: (token: ParsedJwtToken): TokenBasedAuthContext => ({
+  delegated: (token: ParsedJwtToken): UserAssertionAuthContext => ({
     mode: AuthMode.Delegated,
     tenantId: token.tenantId,
     userObjectId: token.userObjectId,
-    accessToken: token.rawToken,
+    userAssertionToken: token.rawToken,
     expiresAt: token.expiresAt,
   }),
 
-  composite: (token: ParsedJwtToken): TokenBasedAuthContext => ({
+  composite: (token: ParsedJwtToken): UserAssertionAuthContext => ({
     mode: AuthMode.Composite,
     tenantId: token.tenantId,
     userObjectId: token.userObjectId,
-    accessToken: token.rawToken,
+    userAssertionToken: token.rawToken,
     expiresAt: token.expiresAt,
   }),
 };

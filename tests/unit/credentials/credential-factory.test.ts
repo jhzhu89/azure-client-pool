@@ -135,7 +135,7 @@ describe("CredentialFactory", () => {
         mode: AuthMode.Delegated,
         userObjectId: "test-user-id",
         tenantId: "test-tenant-id",
-        accessToken: "test-access-token",
+        userAssertionToken: "test-access-token",
         expiresAt: Date.now() + 3600000,
       };
     });
@@ -203,7 +203,7 @@ describe("CredentialFactory", () => {
         mode: AuthMode.Delegated,
         userObjectId: "test-user-id",
         tenantId: "test-tenant-id",
-        accessToken: "test-access-token",
+        userAssertionToken: "test-access-token",
         expiresAt: Date.now() + 3600000,
       };
 
@@ -231,7 +231,7 @@ describe("CredentialFactory", () => {
         mode: AuthMode.Delegated,
         userObjectId: "test-user-id",
         tenantId: "test-tenant-id",
-        accessToken: "test-access-token",
+        userAssertionToken: "test-access-token",
         expiresAt: Date.now() + 3600000,
       };
 

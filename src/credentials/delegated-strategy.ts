@@ -4,7 +4,7 @@ import {
   type OnBehalfOfCredentialSecretOptions,
 } from "@azure/identity";
 import { type DelegatedAuthConfig } from "../config/configuration.js";
-import { type TokenBasedAuthContext } from "../auth/context.js";
+import { UserAssertionAuthContext } from "../auth/context.js";
 import { getLogger } from "../utils/logging.js";
 import * as fs from "fs";
 import * as crypto from "crypto";
@@ -61,15 +61,17 @@ export class DelegatedCredentialStrategy {
     }
   }
 
-  createOBOCredential(context: TokenBasedAuthContext): OnBehalfOfCredential {
+  createOBOCredential(
+    authContext: UserAssertionAuthContext,
+  ): OnBehalfOfCredential {
     const now = Date.now();
 
-    if (context.expiresAt <= now) {
-      const expiredAt = new Date(context.expiresAt).toISOString();
+    if (authContext.expiresAt <= now) {
+      const expiredAt = new Date(authContext.expiresAt).toISOString();
 
       logger.error("User assertion token has expired", {
-        tenantId: context.tenantId,
-        userObjectId: context.userObjectId,
+        tenantId: authContext.tenantId,
+        userObjectId: authContext.userObjectId,
         expiredAt,
       });
 
@@ -79,9 +81,9 @@ export class DelegatedCredentialStrategy {
     }
 
     const baseOptions = {
-      tenantId: context.tenantId,
+      tenantId: authContext.tenantId || "",
       clientId: this.config.clientId,
-      userAssertionToken: context.accessToken,
+      userAssertionToken: authContext.userAssertionToken,
     };
 
     if (this.effectiveCertPath) {

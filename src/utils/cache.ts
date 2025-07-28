@@ -126,13 +126,13 @@ export class CacheManager<T> {
   async getOrCreate(
     cacheKey: string,
     factory: () => Promise<T>,
-    contextInfo?: Record<string, unknown>,
     customTtl?: number,
+    contextInfo?: Record<string, unknown>,
   ): Promise<T> {
     const cached = this.cache.get(cacheKey);
     if (cached) {
       if (cached.absoluteExpiresAt && cached.absoluteExpiresAt <= Date.now()) {
-        return this.createInternal(cacheKey, factory, contextInfo, customTtl);
+        return this.createInternal(cacheKey, factory, customTtl, contextInfo);
       }
       logger.debug(`${this.cacheType} cache hit`, {
         cacheKey: this.createLoggableKey(cacheKey),
@@ -158,8 +158,8 @@ export class CacheManager<T> {
     const promise = this.createInternal(
       cacheKey,
       factory,
-      contextInfo,
       customTtl,
+      contextInfo,
     );
     this.pendingRequests.set(cacheKey, promise);
 
@@ -173,8 +173,8 @@ export class CacheManager<T> {
   private async createInternal(
     cacheKey: string,
     factory: () => Promise<T>,
-    contextInfo?: Record<string, unknown>,
     customTtl?: number,
+    contextInfo?: Record<string, unknown>,
   ): Promise<T> {
     const value = await factory();
     const entry = this.createCacheEntry(value);

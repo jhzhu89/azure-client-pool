@@ -4,11 +4,8 @@ import {
   type DelegatedAuthConfig,
   type ApplicationAuthConfig,
 } from "../config/configuration.js";
-import {
-  type AuthContext,
-  type TokenBasedAuthContext,
-} from "../auth/context.js";
 import { CredentialType, AuthMode } from "../types.js";
+import { type AuthContext } from "../auth/context.js";
 import { CacheManager, createStableCacheKey } from "../utils/cache.js";
 import { getLogger } from "../utils/logging.js";
 import { CredentialFactory } from "./credential-factory.js";
@@ -64,15 +61,15 @@ export class CredentialManager {
 
   async getCredential(
     authContext: AuthContext,
-    authType: CredentialType,
+    credentialType: CredentialType,
   ): Promise<TokenCredential> {
-    switch (authType) {
+    switch (credentialType) {
       case CredentialType.Application:
         return this.getApplicationCredential();
       case CredentialType.Delegated:
         return this.getDelegatedCredential(authContext);
       default:
-        throw new Error(`Unsupported auth type: ${authType}`);
+        throw new Error(`Unsupported auth type: ${credentialType}`);
     }
   }
 
@@ -87,6 +84,7 @@ export class CredentialManager {
     return this.applicationCredentialCache.getOrCreate(
       cacheKey,
       async () => this.credentialFactory.createApplicationCredential(),
+      undefined,
       { authType: CredentialType.Application },
     );
   }
@@ -94,15 +92,19 @@ export class CredentialManager {
   async getDelegatedCredential(
     authContext: AuthContext,
   ): Promise<TokenCredential> {
-    const tokenContext = this.validateAndGetTokenContext(authContext);
+    if (authContext.mode === AuthMode.Application) {
+      throw new Error(
+        "Cannot provide delegated credentials with Application auth context",
+      );
+    }
 
     const now = Date.now();
-    if (tokenContext.expiresAt <= now) {
-      const expiredAt = new Date(tokenContext.expiresAt).toISOString();
+    if (authContext.expiresAt <= now) {
+      const expiredAt = new Date(authContext.expiresAt).toISOString();
 
       logger.error("User assertion token has expired", {
-        tenantId: tokenContext.tenantId,
-        userObjectId: tokenContext.userObjectId,
+        tenantId: authContext.tenantId,
+        userObjectId: authContext.userObjectId,
         expiredAt,
       });
 
@@ -112,23 +114,12 @@ export class CredentialManager {
     }
 
     logger.debug("Creating delegated credential without caching", {
-      tenantId: tokenContext.tenantId,
-      userObjectId: tokenContext.userObjectId,
-      tokenExpiresAt: new Date(tokenContext.expiresAt).toISOString(),
+      tenantId: authContext.tenantId,
+      userObjectId: authContext.userObjectId,
+      tokenExpiresAt: new Date(authContext.expiresAt).toISOString(),
     });
 
-    return this.credentialFactory.createDelegatedCredential(tokenContext);
-  }
-
-  private validateAndGetTokenContext(
-    authContext: AuthContext,
-  ): TokenBasedAuthContext {
-    if (authContext.mode === AuthMode.Application) {
-      throw new Error(
-        "Cannot provide delegated credentials with ApplicationAuthContext",
-      );
-    }
-    return authContext as TokenBasedAuthContext;
+    return this.credentialFactory.createDelegatedCredential(authContext);
   }
 
   private createApplicationRawCacheKey(): string {

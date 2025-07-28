@@ -18,11 +18,18 @@ const mockFs = {
 };
 
 const mockCrypto = {
-  createHash: mock(() => ({
-    update: mock(() => ({
-      digest: mock(() => ({
-        substring: mock(() => "mockedhash1234"),
-      })),
+  createHash: mock((algorithm: string) => ({
+    update: mock((data: string, encoding?: string) => ({
+      digest: mock((format: string) => {
+        // Return actual hash-like strings based on the format
+        if (format === "hex") {
+          return "mockedhash1234567890abcdef1234567890abcdef";
+        }
+        if (format === "base64url") {
+          return "mockBase64Hash123";
+        }
+        return "mockedhash1234";
+      }),
     })),
   })),
 };
@@ -52,7 +59,7 @@ describe("DelegatedCredentialStrategy", () => {
       mode: AuthMode.Delegated,
       userObjectId: "test-user-id",
       tenantId: "test-tenant-id",
-      accessToken: "test-access-token",
+      userAssertionToken: "test-access-token",
       expiresAt: Date.now() + 3600000,
     };
 
@@ -176,7 +183,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
 
       const certificatePath = options.certificatePath;
       expect(certificatePath).toMatch(
-        /\/dev\/shm\/azure-cert-mockedhash1234-\d+\.pem/,
+        /\/dev\/shm\/azure-cert-mockedhash123456-\d+\.pem/,
       );
     });
 
@@ -203,7 +210,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       const options = (credential as any).options;
       const certificatePath = options.certificatePath;
       expect(certificatePath).toMatch(
-        /\/dev\/shm\/azure-cert-mockedhash1234-\d+\.pem/,
+        /\/dev\/shm\/azure-cert-mockedhash123456-\d+\.pem/,
       );
     });
 
@@ -270,7 +277,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       // Should use the generated path from certificatePem, not the provided certificatePath
       expect(options.certificatePath).not.toBe("/should/not/be/used.pem");
       expect(options.certificatePath).toMatch(
-        /\/dev\/shm\/azure-cert-mockedhash1234-\d+\.pem/,
+        /\/dev\/shm\/azure-cert-mockedhash123456-\d+\.pem/,
       );
     });
 
@@ -295,7 +302,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
       // Verify the temporary file name pattern
       const writeCalls = (mockFs.writeFileSync as any).mock.calls;
       expect(writeCalls[0][0]).toMatch(
-        /\/dev\/shm\/azure-cert-mockedhash1234-\d+\.pem\.tmp\.\d+\.\d+\.\w+$/,
+        /\/dev\/shm\/azure-cert-mockedhash123456-\d+\.pem\.tmp\.\d+\.\d+\.\w+$/,
       );
     });
 
@@ -318,7 +325,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
 
         const options = (credential as any).options;
         expect(options.certificatePath).toMatch(
-          /azure-cert-mockedhash1234-12345\.pem/,
+          /azure-cert-mockedhash123456-12345\.pem/,
         );
       } finally {
         // Restore original process.pid
@@ -416,7 +423,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
 
       const contextWithCustomToken: TokenBasedAuthContext = {
         ...authContext,
-        accessToken: "custom-access-token",
+        userAssertionToken: "custom-access-token",
       };
 
       const strategy = new DelegatedCredentialStrategy(config);
@@ -437,7 +444,7 @@ XnGlGV6y8z3ZY2VQ5P9q6r1z8a5M2g6YZ3O7D6l8y2J5v1H8c3E9q4n5r2w3u6x
         mode: AuthMode.Composite,
         userObjectId: "custom-user-id",
         tenantId: "custom-tenant-id",
-        accessToken: "custom-access-token",
+        userAssertionToken: "custom-access-token",
         expiresAt: Date.now() + 7200000,
       };
 
