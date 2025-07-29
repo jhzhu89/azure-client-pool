@@ -1,6 +1,6 @@
 {
   "name": "@jhzhu89/azure-client-pool",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Azure client lifecycle management with intelligent caching and authentication",
   "keywords": [
     "azure",
