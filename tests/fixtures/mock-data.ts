@@ -11,7 +11,7 @@ export const mockJwtConfigs = {
     clientId: "test-client-id",
     tenantId: "test-tenant-id",
     audience: "custom-audience",
-    issuer: "custom-issuer",
+    issuer: ["custom-issuer"],
     clockTolerance: 600,
     cacheMaxAge: 172800000,
     jwksRequestsPerMinute: 20,

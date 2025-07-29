@@ -33,6 +33,10 @@ const validConfig = {
     clockTolerance: 300,
     cacheMaxAge: 86400000,
     jwksRequestsPerMinute: 10,
+    issuer: [
+      "https://sts.windows.net/test-tenant-id/",
+      "https://login.microsoftonline.com/test-tenant-id/v2.0"
+    ],
   },
   cache: {
     keyPrefix: "client",
@@ -55,7 +59,7 @@ const validConfigWithCert = {
   },
   jwt: {
     audience: "test-audience",
-    issuer: "test-issuer",
+    issuer: ["test-issuer"],
     clockTolerance: 600,
     cacheMaxAge: 3600000,
     jwksRequestsPerMinute: 20,
@@ -372,6 +376,10 @@ describe("ConfigurationManager", () => {
         clockTolerance: 300,
         cacheMaxAge: 86400000,
         jwksRequestsPerMinute: 10,
+        issuer: [
+          "https://sts.windows.net/test-tenant-id/",
+          "https://login.microsoftonline.com/test-tenant-id/v2.0"
+        ],
       });
     });
 
@@ -391,7 +399,7 @@ describe("ConfigurationManager", () => {
         cacheMaxAge: 3600000,
         jwksRequestsPerMinute: 20,
         audience: "test-audience",
-        issuer: "test-issuer",
+        issuer: ["test-issuer"],
       });
     });
   });

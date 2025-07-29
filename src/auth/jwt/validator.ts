@@ -17,7 +17,7 @@ export class JwtHandler {
     clientId: string;
     tenantId: string;
     audience: string;
-    issuer: string;
+    issuer: string[];
     clockTolerance: number;
   };
 
@@ -26,7 +26,10 @@ export class JwtHandler {
       clientId: config.clientId,
       tenantId: config.tenantId,
       audience: config.audience ?? config.clientId,
-      issuer: config.issuer ?? `https://sts.windows.net/${config.tenantId}/`,
+      issuer: config.issuer ?? [
+        `https://sts.windows.net/${config.tenantId}/`,
+        `https://login.microsoftonline.com/${config.tenantId}/v2.0`,
+      ],
       clockTolerance: config.clockTolerance,
     };
 
@@ -87,7 +90,10 @@ export class JwtHandler {
         getKey,
         {
           audience: this.config.audience,
-          issuer: this.config.issuer,
+          issuer:
+            this.config.issuer.length > 0
+              ? (this.config.issuer as [string, ...string[]])
+              : undefined,
           algorithms: ["RS256"],
           clockTolerance: this.config.clockTolerance,
         },

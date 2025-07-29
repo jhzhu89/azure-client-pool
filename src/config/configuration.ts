@@ -38,7 +38,7 @@ const azureSchema = z
 const jwtSchema = z
   .object({
     audience: z.string().optional(),
-    issuer: z.string().optional(),
+    issuer: z.array(z.string()).optional(),
     clockTolerance: z.coerce
       .number()
       .default(DEFAULT_CONFIG.jwt.clockTolerance),
@@ -73,11 +73,31 @@ const cacheSchema = z
   })
   .default(DEFAULT_CONFIG.cache);
 
-export const configSchema = z.object({
-  azure: azureSchema,
-  jwt: jwtSchema,
-  cache: cacheSchema,
-});
+export const configSchema = z
+  .object({
+    azure: azureSchema,
+    jwt: jwtSchema,
+    cache: cacheSchema,
+  })
+  .transform((config) => {
+    if (
+      config.azure.tenantId &&
+      (!config.jwt.issuer || config.jwt.issuer.length === 0)
+    ) {
+      return {
+        ...config,
+        jwt: {
+          ...config.jwt,
+          issuer: [
+            `https://sts.windows.net/${config.azure.tenantId}/`,
+            `https://login.microsoftonline.com/${config.azure.tenantId}/v2.0`,
+          ],
+        },
+      };
+    }
+
+    return config;
+  });
 
 export type ClientPoolConfiguration = z.infer<typeof configSchema>;
 
@@ -85,7 +105,7 @@ export interface JwtConfig {
   clientId: string;
   tenantId: string;
   audience?: string;
-  issuer?: string;
+  issuer?: string[];
   clockTolerance: number;
   cacheMaxAge: number;
   jwksRequestsPerMinute: number;
